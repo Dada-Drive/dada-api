@@ -9,6 +9,7 @@ import { swaggerSpec } from '@/config/swagger';
 import { correlationId } from '@/middlewares/correlationId';
 import { errorHandler } from '@/middlewares/errorHandler';
 import { notFound } from '@/middlewares/notFound';
+import { authRoutes } from '@/routes/authRoutes';
 import { healthRoutes } from '@/routes/healthRoutes';
 import { logger } from '@/utils/logger';
 
@@ -58,9 +59,7 @@ if (config.server.nodeEnv !== 'production') {
 
 // Routes
 app.use(healthRoutes);
-
-// API v1 route placeholder
-// app.use('/api/v1', apiRouter);
+app.use('/api/v1/auth', authRoutes);
 
 // 404 handler
 app.use(notFound);

@@ -4,6 +4,7 @@ import http from 'http';
 
 import { app } from '@/app';
 import { config } from '@/config/index';
+import { connectRedis, disconnectRedis } from '@/config/redis';
 import { validateEnv } from '@/config/validateEnv';
 import { initializeDatabase, sequelize } from '@/models/index';
 import { logger } from '@/utils/logger';
@@ -12,8 +13,9 @@ import { logger } from '@/utils/logger';
 validateEnv();
 
 async function startServer(): Promise<void> {
-  // Connect to database before accepting requests
+  // Connect to database and Redis before accepting requests
   await initializeDatabase();
+  await connectRedis();
 
   const server = http.createServer(app);
   const PORT = config.server.port;
@@ -35,15 +37,14 @@ async function startServer(): Promise<void> {
     server.close(() => {
       logger.info('HTTP server closed');
 
-      sequelize
-        .close()
+      Promise.all([sequelize.close(), disconnectRedis()])
         .then(() => {
-          logger.info('Database connection closed');
+          logger.info('Database and Redis connections closed');
           logger.info('Graceful shutdown complete');
           process.exit(0);
         })
         .catch((err: unknown) => {
-          logger.error('Error closing database connection', {
+          logger.error('Error during shutdown', {
             error: err instanceof Error ? err.message : String(err),
           });
           process.exit(1);

@@ -9,9 +9,10 @@ export default [
     ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'logs/**'],
   },
 
-  // TypeScript source files
+  // TypeScript source files (exclude test files — handled separately below)
   {
     files: ['src/**/*.ts'],
+    ignores: ['src/**/*.test.ts', 'src/tests/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       parserOptions: {
@@ -80,6 +81,57 @@ export default [
       'import/resolver': {
         typescript: {
           project: './tsconfig.json',
+        },
+      },
+    },
+  },
+
+  // Test files — use tsconfig.test.json which includes *.test.ts
+  {
+    files: ['src/**/*.test.ts', 'src/tests/**/*.ts'],
+    languageOptions: {
+      parser: tsParser,
+      parserOptions: {
+        project: './tsconfig.test.json',
+        sourceType: 'module',
+      },
+    },
+    plugins: {
+      '@typescript-eslint': tsPlugin,
+      import: importPlugin,
+    },
+    rules: {
+      // Relax rules for test files
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+      'no-console': 'off',
+      '@typescript-eslint/no-misused-promises': 'error',
+      'import/order': [
+        'error',
+        {
+          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'type'],
+          pathGroups: [
+            {
+              pattern: '@/**',
+              group: 'internal',
+              position: 'before',
+            },
+          ],
+          pathGroupsExcludedImportTypes: ['type'],
+          'newlines-between': 'always',
+          alphabetize: { order: 'asc', caseInsensitive: true },
+        },
+      ],
+    },
+    settings: {
+      'import/resolver': {
+        typescript: {
+          project: './tsconfig.test.json',
         },
       },
     },

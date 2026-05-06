@@ -281,66 +281,75 @@
 - Build OTP system with WhatsApp + SMS fallback
 - Implement Google OAuth 2.0 flow
 - Harden all auth endpoints with rate limiting
+- Set up test infrastructure and write auth tests
 
 ### Tasks
 
+#### Test Infrastructure (One-Time Setup)
+- [x] Install `jest`, `ts-jest`, `@types/jest`, `supertest`, `@types/supertest`, `nock`
+- [x] Create `jest.config.ts`: TypeScript support, path aliases (`@/` mapping), test match pattern (`**/__tests__/**/*.test.ts`), 30s timeout
+- [x] Create `src/tests/setup.ts`: connect to test DB (`docker-compose.test.yml`, port 5433), run migrations, cleanup between suites
+- [x] Create `src/tests/helpers/auth.ts`: `getAuthToken(userId, role)` — generates valid JWT for test requests
+- [x] Create `src/tests/helpers/factories.ts`: `createTestUser(overrides?)`, `createTestDriver(overrides?)`, `createTestWallet(userId, balance?)`
+- [x] Update scripts: `"test": "jest"`, `"test:watch": "jest --watch"`, `"test:coverage": "jest --coverage"`
+
 #### JWT System
-- [ ] Create `src/utils/jwt.ts`:
+- [x] Create `src/services/jwtService.ts`:
   - `generateAccessToken(payload: { userId, role })` → 15min expiry, signed with `JWT_SECRET`
   - `generateRefreshToken(payload: { userId })` → 30d expiry, signed with `REFRESH_TOKEN_SECRET`
   - `verifyAccessToken(token)`, `verifyRefreshToken(token)` — return decoded payload or throw
-- [ ] Create `src/config/redis.ts` — Redis client with reconnection logic, event handlers
-- [ ] Implement token blacklist in Redis:
+- [x] Create `src/config/redis.ts` — Redis client with reconnection logic, event handlers
+- [x] Implement token blacklist in Redis:
   - On logout: `SET blacklist:{jti} 1 EX {remainingTTL}`
   - On `protect` middleware: check blacklist before token validation
   - On password change: blacklist all existing tokens for that user
 
 #### Auth Middleware
-- [ ] Create `src/middlewares/auth.ts`:
+- [x] Create `src/middlewares/auth.ts`:
   - `protect`: extract Bearer token → check Redis blacklist → verify JWT → fetch user from cache/DB → attach to `req.user` → reject if `is_active === false`
   - `restrictTo(...roles: UserRole[])`: check `req.user.role` against allowed roles
   - User lookup: check Redis cache first (5min TTL), fall back to DB query
   - Cache invalidation: clear on profile update, role change, suspension
 
 #### Auth Service & Controller
-- [ ] Create `src/services/authService.ts`:
+- [x] Create `src/services/authService.ts`:
   - `register(data)` → validate uniqueness → hash password (bcrypt, 12 rounds) → create user + wallet in transaction → generate tokens
   - `login(phone, password)` → find user → verify password → generate tokens → store refresh token
   - `refreshToken(token)` → verify → check not revoked → generate new pair → revoke old refresh token
   - `logout(userId, token)` → blacklist access token in Redis → delete refresh token from DB
   - `changePassword(userId, oldPassword, newPassword)` → verify old → hash new → update → blacklist all tokens
   - `resetPasswordWithOtp(phone, code, newPassword)` → verify OTP → update password → blacklist tokens
-- [ ] Create `src/controllers/authController.ts` — thin HTTP handlers calling authService
-- [ ] Create `src/routes/authRoutes.ts` with validation chains
+- [x] Create `src/controllers/authController.ts` — thin HTTP handlers calling authService
+- [x] Create `src/routes/authRoutes.ts` with validation chains
 
 #### Password Validation
-- [ ] Minimum 8 characters
-- [ ] At least 1 uppercase letter, 1 lowercase letter, 1 digit
-- [ ] Express-validator custom chain reusable across register + change password
+- [x] Minimum 8 characters
+- [x] At least 1 uppercase letter, 1 lowercase letter, 1 digit
+- [x] Express-validator custom chain reusable across register + change password
 
 #### Google OAuth
-- [ ] Create `src/services/googleAuthService.ts`:
+- [x] Create `src/services/googleAuthService.ts`:
   - Accept Google ID token from client
   - Verify via `google-auth-library` with web/Android/iOS client IDs
   - Extract email, name, picture
   - Find or create user (link google_id, handle email conflicts)
   - Generate JWT tokens
-- [ ] Create `src/controllers/googleAuthController.ts`
-- [ ] Route: `POST /api/v1/auth/google`
+- [x] Google auth handler integrated in `src/controllers/authController.ts`
+- [x] Route: `POST /api/v1/auth/google`
 
 #### OTP System
-- [ ] Create `src/services/otpService.ts`:
+- [x] Create `src/services/otpService.ts`:
   - Generate 6-digit code → hash with bcrypt → store in `otp_codes`
   - Rate limiting: 3 per phone per hour, 100 global per minute
   - Phone format validation: 8–15 digits, valid country code patterns
   - Delivery: try WhatsApp (Vonage) first → fallback to SMS (EasySendSMS)
   - Verification: hash comparison, max 3 attempts, 5min expiry, mark used
-- [ ] Create `src/services/providers/vonageWhatsappProvider.ts`
-- [ ] Create `src/services/providers/easySendSmsProvider.ts`
-- [ ] Create `src/controllers/otpController.ts`
+- [x] Create `src/services/providers/vonageWhatsappProvider.ts`
+- [x] Create `src/services/providers/easySendSmsProvider.ts`
+- [x] OTP handlers integrated in `src/controllers/authController.ts`
 
 #### Rate Limiting
-- [ ] Create `src/middlewares/rateLimiter.ts`:
+- [x] Create `src/middlewares/rateLimiter.ts`:
   - Redis-backed store (`rate-limit-redis`)
   - Global: 100,000 requests per 15min per IP
   - Auth login: 10 per 15min per IP
@@ -359,12 +368,41 @@ ALLOWED_ORIGINS (comma-separated)
 REDIS_URL
 ```
 
+#### Phase 4 Tests
+- [x] `src/services/__tests__/authService.test.ts`:
+  - Register with valid data → user + wallet created
+  - Register with existing phone → 409 conflict
+  - Login with correct password → tokens returned
+  - Login with wrong password → 401
+  - JWT refresh → new token pair, old refresh invalidated
+  - Logout → token blacklisted, subsequent requests rejected
+  - Password change → all existing tokens invalidated
+- [x] `src/services/__tests__/otpService.test.ts`:
+  - Send OTP → code generated and stored
+  - Verify correct code → succeeds
+  - Verify wrong code → attempt incremented
+  - Exceed max attempts → locked
+  - Expired code → rejected
+- [x] `src/middlewares/__tests__/auth.test.ts`:
+  - `protect` — valid token → req.user populated
+  - `protect` — expired token → 401
+  - `protect` — blacklisted token → 401
+  - `restrictTo` — correct role → passes; wrong role → 403
+- [x] `src/middlewares/__tests__/rateLimiter.test.ts`:
+  - Exceed limit → 429 with Retry-After header
+- [x] `src/middlewares/__tests__/validate.test.ts`:
+  - Invalid input → 400 with field-level errors
+  - Valid input → passes through
+- [x] Mock external APIs with nock: Google OAuth, Vonage, EasySendSMS
+
 ### Deliverables
 - Complete auth flow: register → login → refresh → logout → change password
 - Google OAuth endpoint
 - OTP send/verify with dual-provider delivery
 - Redis-backed rate limiting on all auth endpoints
 - Redis token blacklist for immediate revocation
+- Test infrastructure (Jest, Supertest, helpers, factories)
+- Auth test suite passing against isolated test database
 
 ### Checkpoint
 - Register → login → access protected route → refresh token → logout → access denied
@@ -373,6 +411,7 @@ REDIS_URL
 - Google OAuth: valid ID token returns JWT; invalid token returns 401
 - Blacklisted token rejected immediately (not after 15min expiry)
 - Password change invalidates all previous tokens
+- `npm test` passes all auth tests with zero failures
 
 ### Commit Strategy
 - `feat(auth): add JWT generation, verification, and Redis blacklist`
@@ -381,6 +420,9 @@ REDIS_URL
 - `feat(auth): add Google OAuth 2.0 authentication`
 - `feat(auth): add OTP system with WhatsApp + SMS fallback`
 - `feat(auth): add Redis-backed rate limiting on all auth routes`
+- `test(auth): add test infrastructure (Jest, helpers, factories)`
+- `test(auth): add auth service, OTP, and middleware tests`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -559,6 +601,17 @@ REDIS_URL
 - [ ] Whitelist allowed sort/filter fields per endpoint
 - [ ] Apply as Sequelize `where` and `order` options
 
+#### Phase 5 Tests
+- [ ] Add to `src/tests/helpers/factories.ts`: `createTestRide(overrides?)`, `createTestRating(overrides?)`
+- [ ] `src/routes/__tests__/userRoutes.test.ts`: GET/PATCH profile, deactivate, role change
+- [ ] `src/routes/__tests__/driverRoutes.test.ts`: create/update profile, vehicle CRUD, toggle status, nearby query
+- [ ] `src/routes/__tests__/rideRoutes.test.ts`: fare estimate, request ride, get rides (pagination), ride details
+- [ ] `src/routes/__tests__/walletRoutes.test.ts`: get balance, transaction history (pagination)
+- [ ] `src/routes/__tests__/ratingRoutes.test.ts`: submit rating, get driver ratings
+- [ ] `src/routes/__tests__/adminRoutes.test.ts`: list users, approve/reject driver, stats
+- [ ] `src/routes/__tests__/uploadRoutes.test.ts`: valid image accepted, oversized rejected (413), wrong MIME rejected, unauthenticated rejected (401)
+- [ ] All tests verify: correct status codes, response format (`{ success, data, meta? }`), validation errors on bad input, auth enforcement (401/403)
+
 ### Deliverables
 - All REST endpoints from the current API, rebuilt under `/api/v1/`
 - Every list endpoint returns paginated responses with `meta`
@@ -566,6 +619,7 @@ REDIS_URL
 - Request body size limited to 1MB (10MB for upload endpoints)
 - Server-side file upload with multer: validation, size limits, MIME checking
 - All routes documented with `@openapi` JSDoc annotations visible in Swagger UI
+- Route integration test suite for all modules
 
 ### Checkpoint
 - All endpoints respond with correct status codes and response format
@@ -575,6 +629,7 @@ REDIS_URL
 - Role-restricted routes reject unauthorized users with 403
 - Upload: valid image accepted, oversized file rejected, wrong MIME rejected, no path traversal possible
 - Swagger UI at `/docs` shows all endpoints with schemas and examples
+- `npm test` passes all tests (existing + new) with zero failures
 
 ### Commit Strategy
 - `feat(api): add user module (profile, role, phone)`
@@ -586,6 +641,8 @@ REDIS_URL
 - `feat(api): add server-side file upload with multer (avatar, documents, vehicle photos)`
 - `feat(api): add Swagger documentation for all routes`
 - `feat(api): add pagination, filtering, and sorting utilities`
+- `test(api): add route integration tests for all modules`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -699,12 +756,31 @@ REDIS_URL
 - [ ] Driver cancellation after acceptance: flag for admin review
 - [ ] System cancellation: rides pending > 10 minutes
 
+#### Phase 6 Tests (MOST IMPORTANT)
+- [ ] `src/services/__tests__/walletService.test.ts`:
+  - `confirmOnlineTopUp` — single confirmation credits wallet correctly
+  - `confirmOnlineTopUp` — 10 concurrent confirmations (Promise.all) → wallet credited exactly once
+  - `confirmOnlineTopUp` — already completed → idempotent success
+  - `completeRide` — fare calculation and commission deduction correct
+  - `completeRide` — commission would exceed balance → rejected, balance unchanged
+  - Wallet balance never goes below 0
+- [ ] `src/services/__tests__/rideService.test.ts`:
+  - Happy path: request → offer → accept → start → complete
+  - 5 concurrent acceptRide → exactly one succeeds, others get `RIDE_ALREADY_ACCEPTED`
+  - State machine: every valid transition works; every invalid transition throws `RIDE_INVALID_STATUS`
+  - Cancellation at each stage
+  - Fare calculation with stops
+- [ ] `src/middlewares/__tests__/idempotency.test.ts`:
+  - Same Idempotency-Key twice → cached response, no duplicate side effects
+- [ ] Mock Flouci API with nock
+
 ### Deliverables
 - All wallet operations wrapped in SERIALIZABLE transactions with row locks
 - Ride lifecycle enforced via state machine with validated transitions
 - Idempotency middleware with Redis caching
 - No operation modifies wallet balance outside a transaction
 - Negative balance impossible at both DB and application level
+- Concurrent wallet and ride tests proving correctness
 
 ### Checkpoint
 - **Concurrent topup test**: fire 10 simultaneous `confirmTopup` with same `payment_id` → wallet credited exactly once
@@ -712,6 +788,7 @@ REDIS_URL
 - **Negative balance test**: complete ride with commission exceeding balance → rejected, balance unchanged
 - **State machine test**: attempt `complete` on `pending` ride → `RIDE_INVALID_STATUS`
 - **Idempotency test**: same `Idempotency-Key` twice → second returns cached response, no duplicate side effects
+- `npm test` passes all tests (existing + new) with zero failures
 
 ### Commit Strategy
 - `feat(rides): add ride status state machine with validated transitions`
@@ -721,6 +798,9 @@ REDIS_URL
 - `fix(rides): add FOR UPDATE lock on acceptRide to prevent concurrent acceptance`
 - `feat(wallet): add completeRide with transactional fare, commission, and wallet update`
 - `feat(api): add idempotency middleware with Redis caching`
+- `test(wallet): add concurrent topup and negative balance tests`
+- `test(rides): add lifecycle, concurrent acceptance, and state machine tests`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -779,11 +859,23 @@ REDIS_URL
 - [ ] Configure `rate-limit-redis` store connected to shared Redis instance
 - [ ] All rate limiters share state across Node.js instances
 
+#### Phase 7 Tests
+- [ ] `src/services/__tests__/redisGeoService.test.ts`:
+  - Add 100 drivers → search radius 5km → returns sorted by distance
+  - Filter by vehicle type
+  - Remove driver → no longer in results
+- [ ] `src/services/__tests__/cacheService.test.ts`:
+  - Cache hit: second call returns from Redis
+  - Cache invalidation: update → next call fetches from DB
+  - TTL expiry works
+- [ ] JWT blacklist: blacklisted token immediately rejected
+
 ### Deliverables
 - `src/services/redisGeoService.ts` — geospatial driver management
 - `src/services/cacheService.ts` — generic cache get/set/invalidate
 - Redis-backed rate limiting, JWT blacklist, session cache
 - Health check includes Redis connectivity
+- Redis service test suite
 
 ### Checkpoint
 - `GEOADD` + `GEOSEARCH`: add 100 drivers → search radius 5km → returns sorted by distance
@@ -791,12 +883,15 @@ REDIS_URL
 - Cache invalidation: update profile → next `protect` fetches from DB
 - Blacklisted JWT immediately rejected
 - Rate limiter state persists across app restarts (Redis-backed)
+- `npm test` passes all tests (existing + new) with zero failures
 
 ### Commit Strategy
 - `feat(redis): add Redis client with reconnection logic`
 - `feat(redis): add geospatial driver indexing (GEOADD/GEOSEARCH)`
 - `feat(redis): add user session cache and fare estimate cache`
 - `feat(redis): migrate JWT blacklist and rate limiters to Redis store`
+- `test(redis): add geospatial, cache, and blacklist tests`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -859,11 +954,21 @@ REDIS_URL
 - [ ] HTTP polling endpoints remain available for clients that haven't migrated to sockets
 - [ ] Socket.IO `transports: ['websocket', 'polling']` — fallback to HTTP long-polling if WebSocket fails
 
+#### Phase 8 Tests
+- [ ] `src/sockets/__tests__/socketAuth.test.ts`:
+  - Valid JWT → connection accepted
+  - Invalid/expired JWT → connection rejected
+- [ ] `src/sockets/__tests__/rideEvents.test.ts`:
+  - Ride status change → both rider and driver receive event
+  - Driver location update → rider in same ride room receives it
+- [ ] Use `socket.io-client` for test connections
+
 ### Deliverables
 - `src/sockets/` directory with server setup, auth, namespaces, and event handlers
 - Real-time ride lifecycle events replacing polling
 - Driver location streaming via socket
 - Redis adapter for multi-instance broadcasting
+- Socket auth and ride event test suite
 
 ### Checkpoint
 - Two clients connect to `/riders` and `/drivers` namespaces with valid JWTs
@@ -871,6 +976,7 @@ REDIS_URL
 - Ride status change in service → both rider and driver receive `ride:status_changed`
 - Invalid JWT on connection → socket rejected with error
 - Redis adapter: events emitted from instance A received by clients on instance B
+- `npm test` passes all tests (existing + new) with zero failures
 
 ### Commit Strategy
 - `feat(sockets): add Socket.IO server with Redis adapter`
@@ -878,6 +984,8 @@ REDIS_URL
 - `feat(sockets): add rider and driver namespaces with room management`
 - `feat(sockets): add ride lifecycle event emissions`
 - `feat(sockets): add driver location streaming via socket`
+- `test(sockets): add socket auth and ride event tests`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -952,12 +1060,19 @@ REDIS_URL
 - [ ] Mount at `/admin/queues` (protected by admin auth)
 - [ ] Disable in production (or restrict to admin IPs)
 
+#### Phase 9 Tests
+- [ ] `src/jobs/__tests__/rideExpirationWorker.test.ts`: pending ride after delay → auto-cancelled
+- [ ] `src/jobs/__tests__/notificationWorker.test.ts`: FCM delivery (mocked), retry on failure, dead letter after 3 failures
+- [ ] `src/jobs/__tests__/otpDeliveryWorker.test.ts`: WhatsApp attempt → fallback to SMS
+- [ ] Mock Firebase FCM with nock
+
 ### Deliverables
 - `src/jobs/` directory with queue definitions and 6 workers
 - All notification sends go through queue (not inline)
 - Ride expiration via delayed jobs (no more cron)
 - Scheduled ride activation via delayed jobs
 - Bull Board dashboard at `/admin/queues`
+- Worker test suite with mocked external APIs
 
 ### Checkpoint
 - Create a ride → 10 minutes later, ride auto-cancelled (check DB)
@@ -965,6 +1080,7 @@ REDIS_URL
 - Simulate FCM failure → job retried 3 times → moved to dead letter
 - OTP delivery via queue → WhatsApp attempted → fallback to SMS on failure
 - Bull Board shows all queues with pending/active/completed/failed counts
+- `npm test` passes all tests (existing + new) with zero failures
 
 ### Commit Strategy
 - `feat(jobs): add BullMQ queue infrastructure and worker setup`
@@ -973,6 +1089,8 @@ REDIS_URL
 - `feat(jobs): add scheduled ride activation worker`
 - `feat(jobs): add OTP delivery and payment verification workers`
 - `feat(jobs): add Bull Board monitoring dashboard`
+- `test(jobs): add worker tests with mocked external APIs`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -1033,23 +1151,35 @@ REDIS_URL
 - [ ] `wallet_low` — balance below 5 TND threshold
 - [ ] `wallet_suspended` — wallet suspended
 
+#### Phase 10 Tests
+- [ ] `src/services/__tests__/notificationService.test.ts`:
+  - Send → notification persisted in DB + enqueued for FCM
+  - Get paginated notifications
+  - Mark as read / mark all as read
+  - Unread count
+- [ ] Device token: register, refresh, unregister
+
 ### Deliverables
 - `notifications` table with migration
 - Notification service with dual delivery (DB + FCM)
 - Notification management API
 - Device token CRUD
+- Notification service test suite
 
 ### Checkpoint
 - Complete a ride → notification appears in DB + delivered via FCM
 - `GET /notifications` returns paginated results with unread count
 - `PATCH /notifications/:id/read` marks notification, reduces unread count
 - Register token → unregister on logout → no more pushes
+- `npm test` passes all tests (existing + new) with zero failures
 
 ### Commit Strategy
 - `feat(notifications): add notifications table and model`
 - `feat(notifications): add notification service with dual delivery`
 - `feat(notifications): add notification management API`
 - `feat(notifications): add device token lifecycle management`
+- `test(notifications): add notification service and device token tests`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -1109,146 +1239,78 @@ REDIS_URL
 - [ ] Flag routes exceeding 1s response time
 - [ ] Sequelize hooks: log queries taking > 200ms
 
+#### Phase 11 Tests
+- [ ] `src/routes/__tests__/healthRoutes.test.ts`:
+  - All deps healthy → 200
+  - Redis down → 503 with unhealthy status
+- [ ] Slow query logging: execute slow query → warning logged with query text and duration
+
 ### Deliverables
 - Sentry integration capturing errors + performance traces
 - Health check endpoint verifying DB, Redis, Firebase
 - Structured JSON logs with correlation IDs
 - Slow query monitoring
+- Health check and logging test suite
 
 ### Checkpoint
 - Throw error in controller → appears in Sentry dashboard with full context
 - Stop Redis → health check returns 503 with Redis status "unhealthy"
 - Make request → correlation ID in response header matches log entry
 - Execute slow query → warning logged with query text and duration
+- `npm test` passes all tests (existing + new) with zero failures
 
 ### Commit Strategy
 - `feat(observability): add Sentry error tracking and performance monitoring`
 - `feat(observability): add comprehensive health check with dependency probes`
 - `feat(observability): add structured logging with correlation IDs`
 - `perf(observability): add slow query detection and logging`
+- `test(observability): add health check and logging tests`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
-## Phase 12: Testing
+## Phase 12: E2E Integration Tests & Coverage
 
 ### Goals
-- Set up Jest + Supertest with isolated test database
-- Write priority tests that block launch (wallet, rides, auth)
-- Achieve minimum coverage thresholds
-- Mock all external APIs
+- Write end-to-end flow tests that span multiple modules (auth → ride → wallet → rating)
+- Enforce coverage thresholds across the codebase
+- Verify no test duplication (unit/integration tests already written per phase)
 
 ### Tasks
 
-#### Test Infrastructure
-- [ ] Install `jest`, `ts-jest`, `@types/jest`, `supertest`, `@types/supertest`, `nock`
-- [ ] Create `jest.config.ts` with TypeScript support, path aliases, coverage thresholds
-- [ ] Create `src/tests/setup.ts`:
-  - Connect to test database (from `docker-compose.test.yml`)
-  - Run migrations
-  - Seed base data (admin user, etc.)
-  - Clear data between test suites (transaction rollback or truncate)
-- [ ] Create `src/tests/helpers/`:
-  - `createTestUser(overrides?)` — factory for user creation
-  - `createTestDriver(overrides?)` — user + driver profile + vehicle
-  - `createTestRide(overrides?)` — ride with pickup/dropoff
-  - `getAuthToken(userId)` — generate valid JWT for test requests
-  - `createTestWallet(userId, balance)` — wallet with initial balance
+#### End-to-End Flow Tests
+- [ ] `src/tests/e2e/riderFlow.test.ts`:
+  - Register → verify OTP → request ride → driver accepts → complete → rate → wallet updated
+- [ ] `src/tests/e2e/driverFlow.test.ts`:
+  - Register → create profile → submit vehicle → go online → accept ride → complete → earning in wallet
+- [ ] `src/tests/e2e/paymentFlow.test.ts`:
+  - Initiate topup → confirm → balance updated → request ride → fare deducted
 
-#### Priority 1 Tests (Block Launch)
-
-##### Wallet Tests (`src/services/__tests__/walletService.test.ts`)
-- [ ] `confirmOnlineTopUp` — single confirmation credits wallet correctly
-- [ ] `confirmOnlineTopUp` — concurrent confirmations (Promise.all with 10 requests) → wallet credited exactly once
-- [ ] `confirmOnlineTopUp` — already completed topup returns idempotent success
-- [ ] `completeRide` — fare calculation and commission deduction correct
-- [ ] `completeRide` — commission would exceed balance → rejected
-- [ ] Wallet balance never goes below 0 (constraint test)
-- [ ] Transaction history records all operations
-
-##### Ride Tests (`src/services/__tests__/rideService.test.ts`)
-- [ ] Happy path: request → offer → accept → pick → start → complete
-- [ ] Concurrent acceptance: 5 drivers accept same ride → only one succeeds
-- [ ] State machine: each valid transition works; each invalid transition throws `RIDE_INVALID_STATUS`
-- [ ] Cancellation at each stage: pending, offered, accepted, in_progress
-- [ ] Ride expiration: pending ride after 10 minutes → auto-cancelled
-- [ ] Fare calculation with stops: base fare + time + stop wait time
-
-##### Auth Tests (`src/services/__tests__/authService.test.ts`)
-- [ ] Register with valid data → user + wallet created
-- [ ] Register with existing phone → 409 conflict
-- [ ] Login with correct password → tokens returned
-- [ ] Login with wrong password → 401
-- [ ] JWT refresh → new token pair, old refresh invalidated
-- [ ] Logout → token blacklisted, subsequent requests rejected
-- [ ] Password change → all existing tokens invalidated
-
-##### OTP Tests (`src/services/__tests__/otpService.test.ts`)
-- [ ] Send OTP → code generated and stored
-- [ ] Verify correct code → authentication succeeds
-- [ ] Verify wrong code → attempt incremented
-- [ ] Exceed max attempts → code locked
-- [ ] Expired code → rejected
-
-##### Middleware Tests
-- [ ] `protect` — valid token → req.user populated
-- [ ] `protect` — expired token → 401
-- [ ] `protect` — blacklisted token → 401
-- [ ] `restrictTo` — correct role → passes; wrong role → 403
-- [ ] Rate limiter — exceed limit → 429 with Retry-After header
-- [ ] Validation — invalid input → 400 with field-level errors
-- [ ] Idempotency — same key twice → cached response returned
-
-#### Priority 2 Tests
-- [ ] Shared rides: join, pickup/dropoff sequence, fare splitting
-- [ ] Multi-stop rides: add stops, arrive/leave tracking, wait time calculation
-- [ ] Driver nearby: geospatial query returns correct drivers within radius
-- [ ] Admin: user management, driver approval/rejection, statistics
-- [ ] Notifications: send + persist + FCM delivery (mocked)
-- [ ] File upload: valid image accepted, oversized file rejected (413), wrong MIME type rejected (400), unauthenticated upload rejected (401)
-- [ ] File upload: filename sanitization (path traversal attempts rejected)
-- [ ] File upload: max files per request limit enforced
-
-#### External API Mocking
-- [ ] `nock` interceptors for:
-  - Flouci payment verification
-  - Firebase FCM send
-  - Vonage WhatsApp send
-  - EasySendSMS send
-  - HERE Maps routing
-  - Google OAuth token verification
-
-#### Coverage Configuration
-- [ ] Thresholds in `jest.config.ts`:
+#### Coverage Enforcement
+- [ ] Set thresholds in `jest.config.ts`:
   ```
-  models: 80%
   services: 70%
   middlewares: 90%
   overall: 60%
   ```
 - [ ] Coverage reports: text (terminal) + lcov (CI)
+- [ ] `npm run test:coverage` enforces thresholds — fails CI if below
 
 ### Deliverables
-- Complete test suite for wallet, rides, auth, OTP, middleware
-- Test helpers and factories
-- External API mocks via nock
-- Coverage meeting thresholds
-- `npm test` runs all tests against isolated database
+- E2E test flows covering full rider, driver, and payment journeys
+- Coverage thresholds enforced in jest.config.ts
+- All external API calls mocked (no real API calls in any test)
 
 ### Checkpoint
-- `npm test` passes all tests
-- Coverage report meets thresholds
-- Concurrent wallet tests prove no double-spending
-- Concurrent ride tests prove single acceptance
-- All external API calls mocked (no real API calls in tests)
+- `npm test` passes all tests (unit + integration + e2e) with zero failures
+- `npm run test:coverage` meets all thresholds
+- E2E rider flow passes end-to-end
+- E2E driver flow passes end-to-end
 
 ### Commit Strategy
-- `test: add Jest + Supertest setup with test database`
-- `test: add test helpers and factories`
-- `test(wallet): add concurrent topup and negative balance tests`
-- `test(rides): add lifecycle, concurrent acceptance, and state machine tests`
-- `test(auth): add register, login, JWT, OTP tests`
-- `test(middleware): add auth, validation, rate limiter, idempotency tests`
-- `test: add shared rides and multi-stop edge case tests`
+- `test(e2e): add end-to-end integration test flows`
+- `test: enforce coverage thresholds`
+- Tests must pass before each commit (`npm test`)
 
 ---
 
@@ -1366,23 +1428,24 @@ REDIS_URL
 
 ## Phase Summary
 
-| Phase | Dependencies |
-|-------|-------------|
-| 1. Scaffolding & Config | None |
-| 2. Database & Sequelize | Phase 1 |
-| 3. Core Infrastructure | Phase 1 |
-| 4. Authentication | Phases 2, 3 |
-| 5. API Layer — CRUD | Phase 4 |
-| 6. Business Logic (Wallet & Rides) | Phase 5 |
-| 7. Redis & Caching | Phase 4 |
-| 8. Socket.IO Real-Time | Phases 6, 7 |
-| 9. BullMQ Jobs | Phases 6, 7 |
-| 10. Notifications | Phase 9 |
-| 11. Observability | Phase 3 |
-| 12. Testing | Phase 6 |
-| 13. CI/CD & Hardening | Phase 12 |
+| Phase | Dependencies | Testing |
+|-------|-------------|---------|
+| 1. Scaffolding & Config | None | Manual checkpoint only |
+| 2. Database & Sequelize | Phase 1 | Manual checkpoint only |
+| 3. Core Infrastructure | Phase 1 | Manual checkpoint only |
+| 4. Authentication | Phases 2, 3 | **Test infra setup** + auth/OTP/middleware tests |
+| 5. API Layer — CRUD | Phase 4 | Route integration tests for all modules |
+| 6. Business Logic (Wallet & Rides) | Phase 5 | Concurrent wallet + ride state machine tests |
+| 7. Redis & Caching | Phase 4 | Geospatial, cache, and blacklist tests |
+| 8. Socket.IO Real-Time | Phases 6, 7 | Socket auth and ride event tests |
+| 9. BullMQ Jobs | Phases 6, 7 | Worker tests with mocked external APIs |
+| 10. Notifications | Phase 9 | Notification service and device token tests |
+| 11. Observability | Phase 3 | Health check and logging tests |
+| 12. E2E Tests & Coverage | Phase 10 | E2E flows + coverage enforcement |
+| 13. CI/CD & Hardening | Phase 11 | CI runs all tests automatically |
+
+**Testing rule:** Every phase from 4 onward writes tests for what it builds. `npm test` must pass before every commit.
 
 **Parallelism opportunities:**
 - Phases 7 + 11 can start as soon as Phase 4 is complete
 - Phases 8 + 9 can be worked in parallel after Phase 6
-- Phase 12 testing can begin alongside Phase 8/9 development
