@@ -437,13 +437,13 @@ REDIS_URL
 ### Tasks
 
 #### API Versioning
-- [ ] Mount all routes under `/api/v1/` in `app.ts`
-- [ ] API version header: `X-API-Version: v1`
+- [x] Mount all routes under `/api/v1/` in `app.ts`
+- [x] API version header: `X-API-Version: v1`
 
 #### User Module
-- [ ] `src/services/userService.ts` — getProfile, updateProfile (name, email, avatar), updatePhone, setRole, deactivateAccount
-- [ ] `src/controllers/userController.ts`
-- [ ] `src/routes/userRoutes.ts`:
+- [x] `src/services/userService.ts` — getProfile, updateProfile (name, email, avatar), updatePhone, setRole, deactivateAccount
+- [x] `src/controllers/userController.ts`
+- [x] `src/routes/userRoutes.ts`:
   - `GET /api/v1/users/me` — get own profile
   - `PATCH /api/v1/users/me` — update profile
   - `DELETE /api/v1/users/me` — deactivate account
@@ -451,9 +451,9 @@ REDIS_URL
   - `PATCH /api/v1/users/me/phone` — update phone
 
 #### Driver Module
-- [ ] `src/services/driverService.ts` — createProfile, updateProfile, getProfile, registerVehicle, updateVehicle, getVehicle, toggleOnlineStatus, updateLocation, getNearbyDrivers (with bounding box pre-filter)
-- [ ] `src/controllers/driverController.ts`
-- [ ] `src/routes/driverRoutes.ts`:
+- [x] `src/services/driverService.ts` — createProfile, updateProfile, getProfile, registerVehicle, updateVehicle, getVehicle, toggleOnlineStatus, updateLocation, getNearbyDrivers (with bounding box pre-filter)
+- [x] `src/controllers/driverController.ts`
+- [x] `src/routes/driverRoutes.ts`:
   - `GET /api/v1/driver/profile` — get driver profile (driver)
   - `POST /api/v1/driver/profile` — create driver profile
   - `PATCH /api/v1/driver/profile` — update driver profile
@@ -465,9 +465,9 @@ REDIS_URL
   - `GET /api/v1/driver/nearby` — find nearby drivers (rider)
 
 #### Ride Module
-- [ ] `src/services/rideService.ts` — calculateFare, requestRide, getMyRides, getAvailableRides, getScheduledRides, getRideDetails, getRideOffers (business logic deferred to Phase 6)
-- [ ] `src/controllers/rideController.ts`
-- [ ] `src/routes/rideRoutes.ts`:
+- [x] `src/services/rideService.ts` — calculateFare, requestRide, getMyRides, getAvailableRides, getScheduledRides, getRideDetails, getRideOffers (business logic deferred to Phase 6)
+- [x] `src/controllers/rideController.ts`
+- [x] `src/routes/rideRoutes.ts`:
   - `GET /api/v1/rides/fare` — calculate fare estimate
   - `POST /api/v1/rides` — request new ride
   - `GET /api/v1/rides/my` — get user's rides (paginated)
@@ -483,18 +483,18 @@ REDIS_URL
   - `PATCH /api/v1/rides/:id/cancel` — cancel ride
 
 #### Ride Stops Module
-- [ ] `src/services/rideStopService.ts`
-- [ ] `src/controllers/rideStopController.ts`
-- [ ] `src/routes/rideStopRoutes.ts`:
+- [x] `src/services/rideStopService.ts`
+- [x] `src/controllers/rideStopController.ts`
+- [x] `src/routes/rideStopRoutes.ts`:
   - `GET /api/v1/rides/:id/stops` — get all stops
   - `POST /api/v1/rides/:id/stops` — add stop(s)
   - `PATCH /api/v1/rides/:id/stops/:stopId/arrive` — mark arrival
   - `PATCH /api/v1/rides/:id/stops/:stopId/leave` — mark departure
 
 #### Shared Rides Module
-- [ ] `src/services/sharedRideService.ts`
-- [ ] `src/controllers/sharedRideController.ts`
-- [ ] `src/routes/sharedRideRoutes.ts`:
+- [x] `src/services/sharedRideService.ts`
+- [x] `src/controllers/sharedRideController.ts`
+- [x] `src/routes/sharedRideRoutes.ts`:
   - `GET /api/v1/shared-rides/available` — find available shared rides
   - `POST /api/v1/shared-rides/:id/join` — join shared ride
   - `GET /api/v1/shared-rides/:id/passengers` — get passengers
@@ -503,9 +503,9 @@ REDIS_URL
   - `DELETE /api/v1/shared-rides/:id/leave` — leave shared ride
 
 #### Wallet Module
-- [ ] `src/services/walletService.ts` — getBalance, getTransactions (paginated), initiateOnlineTopup, confirmTopup, adminTopup (business logic hardened in Phase 6)
-- [ ] `src/controllers/walletController.ts`
-- [ ] `src/routes/walletRoutes.ts`:
+- [x] `src/services/walletService.ts` — getBalance, getTransactions (paginated), initiateOnlineTopup, confirmTopup, adminTopup (business logic hardened in Phase 6)
+- [x] `src/controllers/walletController.ts`
+- [x] `src/routes/walletRoutes.ts`:
   - `GET /api/v1/wallet` — get balance
   - `GET /api/v1/wallet/transactions` — transaction history (paginated)
   - `POST /api/v1/wallet/topup/online` — initiate Flouci payment
@@ -513,17 +513,17 @@ REDIS_URL
   - `POST /api/v1/wallet/topup/manual` — admin manual topup
 
 #### Rating Module
-- [ ] `src/services/ratingService.ts`
-- [ ] `src/controllers/ratingController.ts`
-- [ ] `src/routes/ratingRoutes.ts`:
+- [x] `src/services/ratingService.ts`
+- [x] `src/controllers/ratingController.ts`
+- [x] `src/routes/ratingRoutes.ts`:
   - `POST /api/v1/ratings/rides/:rideId` — submit rating
   - `GET /api/v1/ratings/rides/:rideId` — get ride rating
   - `GET /api/v1/ratings/drivers/:driverId` — get driver ratings (paginated)
 
 #### Admin Module
-- [ ] `src/services/adminService.ts`
-- [ ] `src/controllers/adminController.ts`
-- [ ] `src/routes/adminRoutes.ts`:
+- [x] `src/services/adminService.ts`
+- [x] `src/controllers/adminController.ts`
+- [x] `src/routes/adminRoutes.ts`:
   - `GET /api/v1/admin/stats` — platform statistics
   - `GET /api/v1/admin/users` — list users (paginated, filterable)
   - `GET /api/v1/admin/users/:userId` — user details
@@ -537,20 +537,20 @@ REDIS_URL
   - `GET /api/v1/admin/transactions` — all transactions (paginated)
 
 #### Vehicle Catalog & Meta
-- [ ] `src/controllers/vehicleCatalogController.ts`
-- [ ] `src/routes/vehicleCatalogRoutes.ts`:
+- [x] `src/controllers/vehicleCatalogController.ts`
+- [x] `src/routes/vehicleCatalogRoutes.ts`:
   - `GET /api/v1/vehicles/makes` — vehicle makes
   - `GET /api/v1/vehicles/models/:make` — models for make
-- [ ] `src/routes/metaRoutes.ts`:
+- [x] `src/routes/metaRoutes.ts`:
   - `GET /api/v1/meta/vehicle-types` — vehicle type enums
 
 #### Notification Routes
-- [ ] `src/routes/notificationRoutes.ts`:
+- [x] `src/routes/notificationRoutes.ts`:
   - `POST /api/v1/notifications/token` — register device token
   - `DELETE /api/v1/notifications/token` — unregister token
 
 #### File Upload Module (Server-Side)
-- [ ] Create `src/middlewares/upload.ts`:
+- [x] Create `src/middlewares/upload.ts`:
   - Multer middleware factory using config from `src/config/uploadConfig.ts`
   - Disk storage for local dev (writes to `uploads/` directory)
   - Memory storage option for cloud streaming (S3/Cloudinary in production)
@@ -558,20 +558,20 @@ REDIS_URL
   - File size enforcement: 5MB per file, max 5 files per request
   - Sanitize filenames (strip path traversal, special characters)
   - Return standardized error via `AppError` on validation failure
-- [ ] Create `src/services/uploadService.ts`:
+- [x] Create `src/services/uploadService.ts`:
   - `uploadImage(file, folder)` — process and store a single image
   - `uploadImages(files, folder)` — process and store multiple images
   - `deleteImage(fileKey)` — delete stored image
   - Local storage in development (disk), cloud storage in production (S3/Cloudinary — configurable via env)
   - Return file URL/key on success
-- [ ] Create `src/controllers/uploadController.ts`
-- [ ] Create `src/routes/uploadRoutes.ts`:
+- [x] Create `src/controllers/uploadController.ts`
+- [x] Create `src/routes/uploadRoutes.ts`:
   - `POST /api/v1/upload/avatar` — upload user avatar (1 file, max 2MB)
   - `POST /api/v1/upload/document` — upload driver documents (CIN, license photos, up to 4 files, max 5MB each)
   - `POST /api/v1/upload/vehicle` — upload vehicle photos (up to 3 files, max 5MB each)
   - All upload endpoints require authentication
   - Body parser limit: 10MB on upload routes only (overrides global 1MB)
-- [ ] Add upload-related env vars to `.env.example`:
+- [x] Add upload-related env vars to `.env.example`:
   ```
   UPLOAD_STORAGE=local          # local | s3 | cloudinary
   UPLOAD_S3_BUCKET=
@@ -580,37 +580,37 @@ REDIS_URL
   UPLOAD_CLOUDINARY_KEY=
   UPLOAD_CLOUDINARY_SECRET=
   ```
-- [ ] Add `@openapi` JSDoc annotations to all upload routes for Swagger documentation
+- [x] Add `@openapi` JSDoc annotations to all upload routes for Swagger documentation
 
 #### Swagger Route Documentation
-- [ ] Ensure ALL routes created in Phase 5 include `@openapi` JSDoc annotations
-- [ ] Define reusable OpenAPI component schemas in `src/config/swagger.ts` or JSDoc:
+- [x] Ensure ALL routes created in Phase 5 include `@openapi` JSDoc annotations
+- [x] Define reusable OpenAPI component schemas in `src/config/swagger.ts` or JSDoc:
   - `ErrorResponse`, `PaginatedResponse`, `SuccessResponse`
   - Request body schemas per endpoint
   - Auth bearer security scheme definition
-- [ ] Verify Swagger UI at `/docs` shows all endpoints with request/response examples
+- [x] Verify Swagger UI at `/docs` shows all endpoints with request/response examples
 
 #### Pagination Utility
-- [ ] Create `src/utils/pagination.ts`:
+- [x] Create `src/utils/pagination.ts`:
   - Parse `?page=1&limit=20` from query params (defaults: page 1, limit 20, max 100)
   - Return `{ offset, limit }` for Sequelize queries
   - Build `PaginationMeta` from Sequelize `count` result
 
 #### Filtering & Sorting
-- [ ] Parse `?sort=created_at:desc` and `?status=completed&role=driver`
-- [ ] Whitelist allowed sort/filter fields per endpoint
-- [ ] Apply as Sequelize `where` and `order` options
+- [x] Parse `?sort=created_at:desc` and `?status=completed&role=driver`
+- [x] Whitelist allowed sort/filter fields per endpoint
+- [x] Apply as Sequelize `where` and `order` options
 
 #### Phase 5 Tests
-- [ ] Add to `src/tests/helpers/factories.ts`: `createTestRide(overrides?)`, `createTestRating(overrides?)`
-- [ ] `src/routes/__tests__/userRoutes.test.ts`: GET/PATCH profile, deactivate, role change
-- [ ] `src/routes/__tests__/driverRoutes.test.ts`: create/update profile, vehicle CRUD, toggle status, nearby query
-- [ ] `src/routes/__tests__/rideRoutes.test.ts`: fare estimate, request ride, get rides (pagination), ride details
-- [ ] `src/routes/__tests__/walletRoutes.test.ts`: get balance, transaction history (pagination)
-- [ ] `src/routes/__tests__/ratingRoutes.test.ts`: submit rating, get driver ratings
-- [ ] `src/routes/__tests__/adminRoutes.test.ts`: list users, approve/reject driver, stats
-- [ ] `src/routes/__tests__/uploadRoutes.test.ts`: valid image accepted, oversized rejected (413), wrong MIME rejected, unauthenticated rejected (401)
-- [ ] All tests verify: correct status codes, response format (`{ success, data, meta? }`), validation errors on bad input, auth enforcement (401/403)
+- [x] Add to `src/tests/helpers/factories.ts`: `createTestRide(overrides?)`, `createTestRating(overrides?)`
+- [x] `src/routes/__tests__/userRoutes.test.ts`: GET/PATCH profile, deactivate, role change
+- [x] `src/routes/__tests__/driverRoutes.test.ts`: create/update profile, vehicle CRUD, toggle status, nearby query
+- [x] `src/routes/__tests__/rideRoutes.test.ts`: fare estimate, request ride, get rides (pagination), ride details
+- [x] `src/routes/__tests__/walletRoutes.test.ts`: get balance, transaction history (pagination)
+- [x] `src/routes/__tests__/ratingRoutes.test.ts`: submit rating, get driver ratings
+- [x] `src/routes/__tests__/adminRoutes.test.ts`: list users, approve/reject driver, stats
+- [x] `src/routes/__tests__/uploadRoutes.test.ts`: valid image accepted, oversized rejected (413), wrong MIME rejected, unauthenticated rejected (401)
+- [x] All tests verify: correct status codes, response format (`{ success, data, meta? }`), validation errors on bad input, auth enforcement (401/403)
 
 ### Deliverables
 - All REST endpoints from the current API, rebuilt under `/api/v1/`
@@ -658,7 +658,7 @@ REDIS_URL
 ### Tasks
 
 #### Ride State Machine
-- [ ] Create `src/types/rideStateMachine.ts`:
+- [x] Create `src/types/rideStateMachine.ts`:
   ```typescript
   const VALID_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
     pending:     ['offered', 'cancelled'],
@@ -679,10 +679,10 @@ REDIS_URL
     }
   }
   ```
-- [ ] All ride status updates call `validateTransition` before proceeding
+- [x] All ride status updates call `validateTransition` before proceeding
 
 #### Wallet Operations (Transaction-Safe)
-- [ ] **`confirmOnlineTopUp`** — FIX DOUBLE-SPEND:
+- [x] **`confirmOnlineTopUp`** — FIX DOUBLE-SPEND:
   ```
   BEGIN SERIALIZABLE
     SELECT * FROM wallet_transactions WHERE reference_id = $1 FOR UPDATE
@@ -692,7 +692,7 @@ REDIS_URL
     UPDATE wallet_transactions SET status = 'completed' WHERE id = $txId
   COMMIT
   ```
-- [ ] **`completeRide`** — FIX NEGATIVE BALANCE:
+- [x] **`completeRide`** — FIX NEGATIVE BALANCE:
   ```
   BEGIN SERIALIZABLE
     SELECT * FROM wallets WHERE owner_id = $driverId FOR UPDATE
@@ -704,10 +704,10 @@ REDIS_URL
     UPDATE rides SET status = 'completed', final_fare, commission_amount, completed_at
   COMMIT
   ```
-- [ ] **`adminTopup`** — wrap in transaction with daily limit check
+- [x] **`adminTopup`** — wrap in transaction with daily limit check
 
 #### Ride Operations (Transaction-Safe)
-- [ ] **`acceptRide`** — FIX CONCURRENT ACCEPTANCE:
+- [x] **`acceptRide`** — FIX CONCURRENT ACCEPTANCE:
   ```
   BEGIN
     SELECT * FROM rides WHERE id = $rideId AND status IN ('pending', 'offered') FOR UPDATE
@@ -716,7 +716,7 @@ REDIS_URL
     UPDATE rides SET status = 'offered' WHERE status = 'pending'
   COMMIT
   ```
-- [ ] **`pickDriver`** — FIX NON-TRANSACTIONAL:
+- [x] **`pickDriver`** — FIX NON-TRANSACTIONAL:
   ```
   BEGIN
     SELECT * FROM rides WHERE id = $rideId FOR UPDATE
@@ -725,12 +725,12 @@ REDIS_URL
     UPDATE rides SET status = 'accepted', driver_id = $driverId
   COMMIT
   ```
-- [ ] **`register`** — wrap user creation + wallet creation in transaction
-- [ ] **`submitRating`** — wrap rating insert + driver average recalculation in transaction
+- [ ] **`register`** — wrap user creation + wallet creation in transaction (deferred: already transactional in authService)
+- [ ] **`submitRating`** — wrap rating insert + driver average recalculation in transaction (deferred: Phase 9 rating worker)
 
 #### Idempotency
-- [ ] `UNIQUE` constraint on `wallet_transactions.reference_id` (already in Phase 2 migration)
-- [ ] Create `src/middlewares/idempotency.ts`:
+- [x] `UNIQUE` constraint on `wallet_transactions.reference_id` (already in Phase 2 migration)
+- [x] Create `src/middlewares/idempotency.ts`:
   - Read `Idempotency-Key` header on mutation requests
   - Check Redis: `GET idempotency:{key}`
   - If exists: return cached response
@@ -738,7 +738,7 @@ REDIS_URL
   - Apply to: `POST /wallet/topup/confirm`, `POST /rides`, `POST /rides/:id/accept`
 
 #### Fare Calculation
-- [ ] Create `src/config/fareConfig.ts`:
+- [x] Create `src/config/fareConfig.ts`:
   ```typescript
   export const FARE_CONFIG = {
     BASE_FARE: 1.5,           // TND
@@ -749,30 +749,30 @@ REDIS_URL
     LOW_WALLET_THRESHOLD: 5.0,// TND
   } as const;
   ```
-- [ ] Fare calculation: `max(BASE_FARE + (minutes * PRICE_PER_MINUTE) + (stop_minutes * PRICE_PER_STOP_MINUTE), MIN_FARE)`
+- [x] Fare calculation: `max(BASE_FARE + (minutes * PRICE_PER_MINUTE) + (stop_minutes * PRICE_PER_STOP_MINUTE), MIN_FARE)`
 
 #### Cancellation Logic
-- [ ] Track `cancelled_by` (rider/driver/system) and `cancel_reason`
-- [ ] Driver cancellation after acceptance: flag for admin review
-- [ ] System cancellation: rides pending > 10 minutes
+- [x] Track `cancelled_by` (rider/driver/system) and `cancel_reason`
+- [x] Driver cancellation after acceptance: flag for admin review
+- [ ] System cancellation: rides pending > 10 minutes (deferred: Phase 9 ride expiration worker)
 
 #### Phase 6 Tests (MOST IMPORTANT)
-- [ ] `src/services/__tests__/walletService.test.ts`:
+- [x] `src/services/__tests__/walletService.test.ts`:
   - `confirmOnlineTopUp` — single confirmation credits wallet correctly
   - `confirmOnlineTopUp` — 10 concurrent confirmations (Promise.all) → wallet credited exactly once
   - `confirmOnlineTopUp` — already completed → idempotent success
   - `completeRide` — fare calculation and commission deduction correct
   - `completeRide` — commission would exceed balance → rejected, balance unchanged
   - Wallet balance never goes below 0
-- [ ] `src/services/__tests__/rideService.test.ts`:
+- [x] `src/services/__tests__/rideService.test.ts`:
   - Happy path: request → offer → accept → start → complete
   - 5 concurrent acceptRide → exactly one succeeds, others get `RIDE_ALREADY_ACCEPTED`
   - State machine: every valid transition works; every invalid transition throws `RIDE_INVALID_STATUS`
   - Cancellation at each stage
   - Fare calculation with stops
-- [ ] `src/middlewares/__tests__/idempotency.test.ts`:
+- [x] `src/middlewares/__tests__/idempotency.test.ts`:
   - Same Idempotency-Key twice → cached response, no duplicate side effects
-- [ ] Mock Flouci API with nock
+- [x] Mock Flouci API with nock
 
 ### Deliverables
 - All wallet operations wrapped in SERIALIZABLE transactions with row locks

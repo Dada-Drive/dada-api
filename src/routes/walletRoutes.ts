@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import * as walletController from '@/controllers/walletController';
 import { protect, restrictTo } from '@/middlewares/auth';
+import { idempotency } from '@/middlewares/idempotency';
 import { topupLimiter } from '@/middlewares/rateLimiter';
 import { validate } from '@/middlewares/validate';
 import { UserRole } from '@/types/enums';
@@ -73,6 +74,7 @@ walletRoutes.post(
   '/topup/confirm',
   protect,
   topupLimiter,
+  idempotency(),
   validate(confirmTopupValidation),
   walletController.confirmTopup,
 );

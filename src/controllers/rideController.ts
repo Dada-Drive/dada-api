@@ -70,7 +70,13 @@ const getRideOffers = asyncHandler(async (req: Request, res: Response): Promise<
 // ── Lifecycle Actions ───────────────────────────────────────────────────────
 
 const acceptRide = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const ride = await rideService.acceptRide(req.params.id as string, req.user!.userId);
+  const result = await rideService.acceptRide(req.params.id as string, req.user!.userId);
+  sendSuccess(res, result);
+});
+
+const pickDriver = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const { offerId } = req.body as { offerId: string };
+  const ride = await rideService.pickDriver(req.params.id as string, req.user!.userId, offerId);
   sendSuccess(res, ride);
 });
 
@@ -112,6 +118,7 @@ export {
   getRideDetails,
   getRideOffers,
   getScheduledRides,
+  pickDriver,
   refuseRide,
   startRide,
 };

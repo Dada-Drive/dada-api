@@ -147,7 +147,7 @@ describe('Ride Routes', () => {
   });
 
   describe('POST /api/v1/rides/:id/accept', () => {
-    it('driver accepts a pending ride', async () => {
+    it('driver creates an offer for a pending ride', async () => {
       const rider = await createTestUser();
       const driver = await createTestUser({ role: UserRole.Driver });
       const token = generateTestToken(driver.id, driver.role);
@@ -158,8 +158,8 @@ describe('Ride Routes', () => {
         .set('Authorization', `Bearer ${token}`);
 
       expect(res.status).toBe(200);
-      expect(res.body.data.status).toBe(RideStatus.Accepted);
-      expect(res.body.data.driverId).toBe(driver.id);
+      expect(res.body.data.ride.status).toBe(RideStatus.Offered);
+      expect(res.body.data.offer.driverId).toBe(driver.id);
     });
 
     it('rejects accepting a completed ride', async () => {

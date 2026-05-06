@@ -1,9 +1,18 @@
-import { Op, Transaction } from 'sequelize';
+import { Op, QueryTypes, Transaction } from 'sequelize';
 
+import { FARE_CONFIG } from '@/config/fareConfig';
 import { config } from '@/config/index';
-import { Ride, RideOffer, sequelize, User } from '@/models/index';
-import { OfferStatus, RideStatus, VehicleType } from '@/types/enums';
+import { Ride, RideOffer, sequelize, User, Wallet, WalletTransaction } from '@/models/index';
+import {
+  OfferStatus,
+  RideStatus,
+  TransactionStatus,
+  TransactionType,
+  VehicleType,
+  WalletStatus,
+} from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
+import { validateTransition } from '@/types/rideStateMachine';
 import { parseFilters, parseSorting } from '@/utils/filtering';
 import { buildPaginationMeta, parsePaginationQuery } from '@/utils/pagination';
 
@@ -43,7 +52,8 @@ function calculateFare(input: FareEstimateInput): { fare: number; currency: stri
   const baseFare = fareConfig.baseFare[type];
   const distanceCost = input.distanceKm * fareConfig.perKm[type];
   const timeCost = input.estimatedMinutes * fareConfig.perMin[type];
-  const fare = Math.round((baseFare + distanceCost + timeCost) * 100) / 100;
+  const raw = Math.round((baseFare + distanceCost + timeCost) * 100) / 100;
+  const fare = Math.max(raw, FARE_CONFIG.MIN_FARE);
 
   return { fare, currency: fareConfig.currency };
 }
@@ -69,6 +79,7 @@ async function requestRide(riderId: string, input: CreateRideInput): Promise<Rid
     distanceKm: input.distanceKm,
     estimatedMinutes: input.estimatedMinutes,
     calculatedFare: fare,
+    commissionRate: FARE_CONFIG.COMMISSION_RATE,
     passengerName: input.passengerName,
     passengerPhone: input.passengerPhone,
     isShared: input.isShared,
@@ -180,20 +191,79 @@ async function getRideOffers(rideId: string, userId: string): Promise<RideOffer[
   });
 }
 
-// ── Ride Lifecycle (basic status validation — full state machine in Phase 6) ─
+// ── Ride Lifecycle ─────────────────────────────────────────────────────────
 
-async function acceptRide(rideId: string, driverId: string): Promise<Ride> {
+async function acceptRide(
+  rideId: string,
+  driverId: string,
+): Promise<{ ride: Ride; offer: RideOffer }> {
   return sequelize.transaction(
     { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
     async (t) => {
       const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
       if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+
+      // Only Pending or Offered rides can receive new offers
       if (ride.status !== RideStatus.Pending && ride.status !== RideStatus.Offered) {
         throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
       }
-      if (ride.driverId) throw appError(ErrorCodes.RIDE.RIDE_ALREADY_ACCEPTED);
 
-      ride.driverId = driverId;
+      // Check if this driver already offered
+      const existing = await RideOffer.findOne({
+        where: { rideId, driverId },
+        transaction: t,
+      });
+      if (existing) throw appError(ErrorCodes.RIDE.RIDE_ALREADY_ACCEPTED);
+
+      const offer = await RideOffer.create(
+        { rideId, driverId, offeredFare: Number(ride.calculatedFare) },
+        { transaction: t },
+      );
+
+      // Transition Pending → Offered on first offer
+      if (ride.status === RideStatus.Pending) {
+        validateTransition(ride.status, RideStatus.Offered);
+        ride.status = RideStatus.Offered;
+        await ride.save({ transaction: t });
+      }
+
+      return { ride, offer };
+    },
+  );
+}
+
+// ── Pick Driver ────────────────────────────────────────────────────────────
+
+async function pickDriver(rideId: string, riderId: string, offerId: string): Promise<Ride> {
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.riderId !== riderId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+
+      validateTransition(ride.status, RideStatus.Accepted);
+
+      const offer = await RideOffer.findOne({
+        where: { id: offerId, rideId, status: OfferStatus.Pending },
+        transaction: t,
+      });
+      if (!offer) throw appError(ErrorCodes.RIDE.OFFER_NOT_FOUND);
+
+      // Accept the selected offer
+      offer.status = OfferStatus.Accepted;
+      await offer.save({ transaction: t });
+
+      // Reject all other pending offers
+      await RideOffer.update(
+        { status: OfferStatus.Rejected },
+        {
+          where: { rideId, id: { [Op.ne]: offerId }, status: OfferStatus.Pending },
+          transaction: t,
+        },
+      );
+
+      ride.driverId = offer.driverId;
       ride.status = RideStatus.Accepted;
       await ride.save({ transaction: t });
       return ride;
@@ -201,66 +271,143 @@ async function acceptRide(rideId: string, driverId: string): Promise<Ride> {
   );
 }
 
-async function refuseRide(rideId: string, driverId: string): Promise<void> {
-  const offer = await RideOffer.findOne({ where: { rideId, driverId } });
-  if (!offer) throw appError(ErrorCodes.RIDE.OFFER_NOT_FOUND);
+// ── Refuse Ride ────────────────────────────────────────────────────────────
 
-  offer.status = OfferStatus.Rejected;
-  await offer.save();
+async function refuseRide(rideId: string, driverId: string): Promise<void> {
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const offer = await RideOffer.findOne({
+        where: { rideId, driverId, status: OfferStatus.Pending },
+        transaction: t,
+      });
+      if (!offer) throw appError(ErrorCodes.RIDE.OFFER_NOT_FOUND);
+
+      offer.status = OfferStatus.Rejected;
+      await offer.save({ transaction: t });
+    },
+  );
 }
 
 async function arriveAtPickup(rideId: string, driverId: string): Promise<Ride> {
-  const ride = await Ride.findByPk(rideId);
-  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
-  if (ride.driverId !== driverId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
-  if (ride.status !== RideStatus.Accepted) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.driverId !== driverId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+      if (ride.status !== RideStatus.Accepted) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
 
-  ride.arrivedAt = new Date();
-  await ride.save();
-  return ride;
+      ride.arrivedAt = new Date();
+      await ride.save({ transaction: t });
+      return ride;
+    },
+  );
 }
 
 async function startRide(rideId: string, driverId: string): Promise<Ride> {
-  const ride = await Ride.findByPk(rideId);
-  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
-  if (ride.driverId !== driverId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
-  if (ride.status !== RideStatus.Accepted) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.driverId !== driverId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+      validateTransition(ride.status, RideStatus.InProgress);
 
-  ride.status = RideStatus.InProgress;
-  ride.startedAt = new Date();
-  await ride.save();
-  return ride;
+      ride.status = RideStatus.InProgress;
+      ride.startedAt = new Date();
+      await ride.save({ transaction: t });
+      return ride;
+    },
+  );
 }
 
 async function completeRide(rideId: string, driverId: string): Promise<Ride> {
-  const ride = await Ride.findByPk(rideId);
-  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
-  if (ride.driverId !== driverId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
-  if (ride.status !== RideStatus.InProgress) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.driverId !== driverId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+      validateTransition(ride.status, RideStatus.Completed);
 
-  ride.status = RideStatus.Completed;
-  ride.finalFare = ride.calculatedFare;
-  ride.completedAt = new Date();
-  ride.commissionAmount = Number(ride.calculatedFare) * (Number(ride.commissionRate) / 100);
-  await ride.save();
-  return ride;
+      // Calculate fare and commission
+      const finalFare = Number(ride.calculatedFare);
+      const commissionAmount =
+        Math.round(finalFare * (Number(ride.commissionRate) / 100) * 100) / 100;
+      const driverEarning = Math.round((finalFare - commissionAmount) * 100) / 100;
+
+      // Lock driver wallet
+      const wallet = await Wallet.findOne({
+        where: { ownerId: driverId },
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+      if (!wallet)
+        throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Driver wallet not found' });
+      if (wallet.status !== WalletStatus.Active) throw appError(ErrorCodes.WALLET.WALLET_SUSPENDED);
+
+      // Credit driver wallet with application guard
+      const results = await sequelize.query(
+        'UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE owner_id = $2 AND balance + $1 >= 0 RETURNING *',
+        { bind: [driverEarning, driverId], transaction: t, type: QueryTypes.SELECT },
+      );
+      if (results.length === 0) {
+        throw appError(ErrorCodes.WALLET.INSUFFICIENT_BALANCE);
+      }
+
+      // Create earning and commission transaction records
+      await WalletTransaction.bulkCreate(
+        [
+          {
+            walletOwnerId: driverId,
+            type: TransactionType.RideEarning,
+            amount: driverEarning,
+            status: TransactionStatus.Completed,
+            referenceId: `${rideId}:earning`,
+            description: 'Ride earning',
+          },
+          {
+            walletOwnerId: driverId,
+            type: TransactionType.Commission,
+            amount: commissionAmount,
+            status: TransactionStatus.Completed,
+            referenceId: `${rideId}:commission`,
+            description: 'Platform commission',
+          },
+        ],
+        { transaction: t },
+      );
+
+      // Update ride
+      ride.status = RideStatus.Completed;
+      ride.finalFare = finalFare;
+      ride.commissionAmount = commissionAmount;
+      ride.completedAt = new Date();
+      await ride.save({ transaction: t });
+      return ride;
+    },
+  );
 }
 
 async function cancelRide(rideId: string, userId: string, reason?: string): Promise<Ride> {
-  const ride = await Ride.findByPk(rideId);
-  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
-  if (ride.riderId !== userId && ride.driverId !== userId) {
-    throw appError(ErrorCodes.AUTH.FORBIDDEN);
-  }
-  if (ride.status === RideStatus.Completed || ride.status === RideStatus.Cancelled) {
-    throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
-  }
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.riderId !== userId && ride.driverId !== userId) {
+        throw appError(ErrorCodes.AUTH.FORBIDDEN);
+      }
+      validateTransition(ride.status, RideStatus.Cancelled);
 
-  ride.status = RideStatus.Cancelled;
-  ride.cancelledBy = userId === ride.riderId ? 'rider' : 'driver';
-  ride.cancelReason = reason || null;
-  await ride.save();
-  return ride;
+      ride.status = RideStatus.Cancelled;
+      ride.cancelledBy = userId === ride.riderId ? 'rider' : 'driver';
+      ride.cancelReason = reason || null;
+      await ride.save({ transaction: t });
+      return ride;
+    },
+  );
 }
 
 export {
@@ -274,6 +421,7 @@ export {
   getRideDetails,
   getRideOffers,
   getScheduledRides,
+  pickDriver,
   refuseRide,
   requestRide,
   startRide,

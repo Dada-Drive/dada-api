@@ -1,3 +1,6 @@
+import { Op, QueryTypes, Transaction } from 'sequelize';
+
+import { FARE_CONFIG } from '@/config/fareConfig';
 import { sequelize, Wallet, WalletTransaction } from '@/models/index';
 import { TransactionStatus, TransactionType, WalletStatus } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
@@ -56,25 +59,38 @@ async function initiateOnlineTopup(userId: string, amount: number): Promise<Wall
 // ── Confirm Topup ───────────────────────────────────────────────────────────
 
 async function confirmTopup(transactionId: string, userId: string): Promise<WalletTransaction> {
-  return sequelize.transaction(async (t) => {
-    const tx = await WalletTransaction.findByPk(transactionId, { transaction: t });
-    if (!tx) throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Transaction not found' });
-    if (tx.walletOwnerId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
-    if (tx.status !== TransactionStatus.Pending) {
-      throw appError(ErrorCodes.WALLET.DUPLICATE_TRANSACTION);
-    }
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE },
+    async (t) => {
+      const tx = await WalletTransaction.findByPk(transactionId, {
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+      if (!tx) throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Transaction not found' });
+      if (tx.walletOwnerId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
 
-    tx.status = TransactionStatus.Completed;
-    await tx.save({ transaction: t });
+      // Idempotent: already completed → return without side effects
+      if (tx.status === TransactionStatus.Completed) return tx;
 
-    await Wallet.increment('balance', {
-      by: Number(tx.amount),
-      where: { ownerId: tx.walletOwnerId },
-      transaction: t,
-    });
+      // Not pending → not retriable
+      if (tx.status !== TransactionStatus.Pending) {
+        throw appError(ErrorCodes.WALLET.DUPLICATE_TRANSACTION);
+      }
 
-    return tx;
-  });
+      // Credit wallet with application guard
+      const results = await sequelize.query(
+        'UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE owner_id = $2 AND balance + $1 >= 0 RETURNING *',
+        { bind: [Number(tx.amount), tx.walletOwnerId], transaction: t, type: QueryTypes.SELECT },
+      );
+      if (results.length === 0) {
+        throw appError(ErrorCodes.WALLET.INSUFFICIENT_BALANCE);
+      }
+
+      tx.status = TransactionStatus.Completed;
+      await tx.save({ transaction: t });
+      return tx;
+    },
+  );
 }
 
 // ── Admin Manual Topup ──────────────────────────────────────────────────────
@@ -84,29 +100,58 @@ async function adminTopup(
   amount: number,
   description?: string,
 ): Promise<WalletTransaction> {
-  return sequelize.transaction(async (t) => {
-    const wallet = await Wallet.findOne({ where: { ownerId: userId }, transaction: t });
-    if (!wallet) throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Wallet not found' });
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE },
+    async (t) => {
+      const wallet = await Wallet.findOne({
+        where: { ownerId: userId },
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+      if (!wallet) throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Wallet not found' });
+      if (wallet.status !== WalletStatus.Active) throw appError(ErrorCodes.WALLET.WALLET_SUSPENDED);
 
-    const tx = await WalletTransaction.create(
-      {
-        walletOwnerId: userId,
-        type: TransactionType.TopupManual,
-        amount,
-        status: TransactionStatus.Completed,
-        description: description || 'Manual topup by admin',
-      },
-      { transaction: t },
-    );
+      // Daily limit check
+      const startOfDay = new Date();
+      startOfDay.setHours(0, 0, 0, 0);
 
-    await Wallet.increment('balance', {
-      by: amount,
-      where: { ownerId: userId },
-      transaction: t,
-    });
+      const todayTotal =
+        (await WalletTransaction.sum('amount', {
+          where: {
+            walletOwnerId: userId,
+            type: TransactionType.TopupManual,
+            createdAt: { [Op.gte]: startOfDay },
+          },
+          transaction: t,
+        })) || 0;
 
-    return tx;
-  });
+      if (todayTotal + amount > FARE_CONFIG.ADMIN_DAILY_TOPUP_LIMIT) {
+        throw appError(ErrorCodes.WALLET.INVALID_AMOUNT, {
+          message: `Daily admin topup limit (${FARE_CONFIG.ADMIN_DAILY_TOPUP_LIMIT} TND) would be exceeded`,
+        });
+      }
+
+      // Credit wallet with application guard
+      const results = await sequelize.query(
+        'UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE owner_id = $2 AND balance + $1 >= 0 RETURNING *',
+        { bind: [amount, userId], transaction: t, type: QueryTypes.SELECT },
+      );
+      if (results.length === 0) {
+        throw appError(ErrorCodes.WALLET.INSUFFICIENT_BALANCE);
+      }
+
+      return WalletTransaction.create(
+        {
+          walletOwnerId: userId,
+          type: TransactionType.TopupManual,
+          amount,
+          status: TransactionStatus.Completed,
+          description: description || 'Manual topup by admin',
+        },
+        { transaction: t },
+      );
+    },
+  );
 }
 
 export { adminTopup, confirmTopup, getBalance, getTransactions, initiateOnlineTopup };

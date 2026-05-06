@@ -2,12 +2,14 @@ import { Router } from 'express';
 
 import * as rideController from '@/controllers/rideController';
 import { protect } from '@/middlewares/auth';
+import { idempotency } from '@/middlewares/idempotency';
 import { validate } from '@/middlewares/validate';
 import {
   cancelRideValidation,
   createRideValidation,
   fareEstimateValidation,
   getRidesValidation,
+  pickDriverValidation,
   rideIdValidation,
 } from '@/validators/rideValidators';
 
@@ -96,9 +98,24 @@ const rideRoutes = Router();
  * /rides/{id}/accept:
  *   post:
  *     tags: [Rides]
- *     summary: Driver accepts ride
+ *     summary: Driver creates an offer for a ride
  *     security: [{ bearerAuth: [] }]
- *     responses: { 200: { description: Ride accepted }, 409: { description: Already accepted } }
+ *     responses: { 200: { description: Offer created, ride status set to offered }, 409: { description: Already offered } }
+ * /rides/{id}/pick-driver:
+ *   post:
+ *     tags: [Rides]
+ *     summary: Rider picks a driver from pending offers
+ *     security: [{ bearerAuth: [] }]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               offerId: { type: string, format: uuid }
+ *             required: [offerId]
+ *     responses: { 200: { description: Driver selected, ride accepted }, 404: { description: Offer not found } }
  * /rides/{id}/refuse:
  *   post:
  *     tags: [Rides]
@@ -135,7 +152,13 @@ const rideRoutes = Router();
 rideRoutes.get('/fare', protect, validate(fareEstimateValidation), rideController.getFareEstimate);
 
 // CRUD
-rideRoutes.post('/', protect, validate(createRideValidation), rideController.createRide);
+rideRoutes.post(
+  '/',
+  protect,
+  idempotency(),
+  validate(createRideValidation),
+  rideController.createRide,
+);
 rideRoutes.get('/my', protect, validate(getRidesValidation), rideController.getMyRides);
 rideRoutes.get(
   '/available',
@@ -153,7 +176,19 @@ rideRoutes.get('/:id', protect, validate(rideIdValidation), rideController.getRi
 rideRoutes.get('/:id/offers', protect, validate(rideIdValidation), rideController.getRideOffers);
 
 // Lifecycle
-rideRoutes.post('/:id/accept', protect, validate(rideIdValidation), rideController.acceptRide);
+rideRoutes.post(
+  '/:id/accept',
+  protect,
+  idempotency(),
+  validate(rideIdValidation),
+  rideController.acceptRide,
+);
+rideRoutes.post(
+  '/:id/pick-driver',
+  protect,
+  validate(pickDriverValidation),
+  rideController.pickDriver,
+);
 rideRoutes.post('/:id/refuse', protect, validate(rideIdValidation), rideController.refuseRide);
 rideRoutes.patch('/:id/arrive', protect, validate(rideIdValidation), rideController.arriveAtPickup);
 rideRoutes.patch('/:id/start', protect, validate(rideIdValidation), rideController.startRide);

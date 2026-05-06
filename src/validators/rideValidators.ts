@@ -42,10 +42,16 @@ const cancelRideValidation = [
   body('reason').optional().isString().isLength({ max: 500 }).trim(),
 ];
 
+const pickDriverValidation = [
+  uuidParam('id'),
+  body('offerId').isUUID(4).withMessage('Must be a valid UUID'),
+];
+
 export {
   cancelRideValidation,
   createRideValidation,
   fareEstimateValidation,
   getRidesValidation,
+  pickDriverValidation,
   rideIdValidation,
 };
