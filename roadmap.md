@@ -227,64 +227,30 @@
 ### Tasks
 
 #### Error Handling
-- [ ] Create `src/utils/AppError.ts`:
-  ```typescript
-  class AppError extends Error {
-    readonly statusCode: number;
-    readonly code: string;        // machine-readable: 'RIDE_NOT_FOUND'
-    readonly isOperational: boolean;
-    readonly details?: Record<string, unknown>;
-  }
-  ```
-- [ ] Define error code constants in `src/types/errorCodes.ts` — organized by domain:
-  - Auth: `INVALID_CREDENTIALS`, `TOKEN_EXPIRED`, `TOKEN_INVALID`, `ACCOUNT_SUSPENDED`, `ACCOUNT_NOT_FOUND`
-  - OTP: `OTP_EXPIRED`, `OTP_INVALID`, `OTP_MAX_ATTEMPTS`, `OTP_RATE_LIMITED`
-  - Ride: `RIDE_NOT_FOUND`, `RIDE_INVALID_STATUS`, `RIDE_ALREADY_ACCEPTED`, `RIDE_EXPIRED`, `RIDE_OUTSIDE_BOUNDS`
-  - Wallet: `INSUFFICIENT_BALANCE`, `WALLET_SUSPENDED`, `DUPLICATE_TRANSACTION`, `INVALID_AMOUNT`
-  - Driver: `DRIVER_NOT_APPROVED`, `DRIVER_OFFLINE`, `DRIVER_NOT_FOUND`, `VEHICLE_NOT_FOUND`
-  - General: `VALIDATION_ERROR`, `NOT_FOUND`, `FORBIDDEN`, `RATE_LIMITED`, `INTERNAL_ERROR`
+- [x] Create `src/utils/AppError.ts` — operational error class with statusCode, code, isOperational, details (Phase 1)
+- [x] Define error code constants in `src/types/errorCodes.ts` — 6 domains (AUTH, OTP, RIDE, WALLET, DRIVER, GENERAL), `as const` objects with `{ code, status, message }`, `appError()` factory function, `ErrorCode` union type
 
 #### Response Helpers
-- [ ] Create `src/utils/responseHelpers.ts`:
-  - `sendSuccess(res, data, statusCode = 200)` → `{ success: true, data }`
-  - `sendCreated(res, data)` → 201 + `{ success: true, data }`
-  - `sendNoContent(res)` → 204, empty body
-  - `sendPaginated(res, data, meta)` → `{ success: true, data, meta: { total, page, limit, pages } }`
-  - `sendError(res, error)` → `{ success: false, error: { code, message, details? } }`
+- [x] Create `src/utils/responseHelpers.ts` — `sendSuccess`, `sendCreated`, `sendNoContent`, `sendPaginated` (success paths only; errors handled by centralized errorHandler middleware)
 
 #### Async Handler
-- [ ] Create `src/utils/asyncHandler.ts` — wraps async controller functions, catches thrown errors, passes to `next()`
+- [x] Create `src/utils/asyncHandler.ts` — wraps async controllers, catches → next() (Phase 1)
 
 #### Logger
-- [ ] Create `src/utils/logger.ts`:
-  - Winston with daily rotation (`winston-daily-rotate-file`)
-  - JSON format in production, colorized console in development
-  - Log levels: error, warn, info, http, debug
-  - Correlation ID attached to every log entry via `cls-hooked` or `AsyncLocalStorage`
-  - 30-day retention on log files
-  - No `console.log` anywhere in codebase
+- [x] Create `src/utils/logger.ts` — Winston with AsyncLocalStorage correlation IDs, daily rotation (30-day retention, 20MB max), JSON prod / colorized dev (Phase 1)
 
 #### Correlation ID Middleware
-- [ ] Create `src/middlewares/correlationId.ts`:
-  - Read `X-Request-ID` header or generate UUID
-  - Set on response header
-  - Store in `AsyncLocalStorage` for logger access
-  - Available to all downstream code via `getCorrelationId()`
+- [x] Create `src/middlewares/correlationId.ts` — reads X-Request-ID or generates UUID, stores in AsyncLocalStorage, sets response header (Phase 1)
 
 #### Validation Middleware
-- [ ] Create `src/middlewares/validate.ts`:
-  - Wrapper around express-validator's `validationResult`
-  - Returns `{ success: false, error: { code: 'VALIDATION_ERROR', message, details: { field, message }[] } }`
-  - Input length limits: default 500 chars max on all text fields
-  - Remove Joi dependency entirely
-  - Remove MongoDB-style `$`/`.` sanitization (irrelevant for PostgreSQL)
+- [x] Create `src/middlewares/validate.ts` — runs express-validator chains, returns `{ success: false, error: { code: 'VALIDATION_ERROR', details: [{ field, message }] } }`
+- [x] Create `src/validators/common.ts` — reusable chains: `uuidParam`, `phoneField`, `coordinateFields`, `paginationParams`, `enumField`, `textField` (500 char default), `amountField` (positive, max 2 decimals)
 
 #### Shared Types
-- [ ] Create `src/types/` directory:
-  - `enums.ts` — RideStatus, UserRole, VehicleType, WalletTransactionType, OtpChannel, etc. as TypeScript enums or discriminated unions
-  - `pagination.ts` — `PaginationQuery`, `PaginationMeta` interfaces
-  - `express.d.ts` — extend Express `Request` with `user`, `requestId`
-  - `common.ts` — `ApiResponse<T>`, `PaginatedResponse<T>`, `ErrorResponse` interfaces
+- [x] Create `src/types/enums.ts` — 9 TypeScript enums matching PostgreSQL ENUM types (Phase 2)
+- [x] Create `src/types/pagination.ts` — `PaginationQuery`, `PaginationMeta`, `PaginatedQueryOptions` interfaces + `parsePagination()` helper
+- [x] Create `src/types/express.d.ts` — extends Express Request with `requestId: string` and `user?: { userId, role: UserRole }` (Phase 1, typed role in Phase 3)
+- [x] Create `src/types/common.ts` — `ApiResponse<T>`, `PaginatedResponse<T>`, `ErrorResponse` generic interfaces
 
 ### Deliverables
 - `src/utils/AppError.ts`, `asyncHandler.ts`, `responseHelpers.ts`, `logger.ts`
