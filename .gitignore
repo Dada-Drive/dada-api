@@ -1,0 +1,53 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Uploads (user-uploaded files)
+uploads/
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+._*
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+
+# Docker volumes (local persistence)
+pgdata/
+redisdata/
+
+# TypeScript incremental compilation cache
+*.tsbuildinfo
+
+# Package manager
+.npm
+.pnpm-store/
+
+# Misc
+*.pid
+*.seed
+*.pid.lock
