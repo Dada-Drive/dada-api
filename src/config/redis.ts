@@ -64,4 +64,13 @@ async function disconnectRedis(): Promise<void> {
   }
 }
 
-export { connectRedis, disconnectRedis, redisClient };
+async function pingRedis(): Promise<boolean> {
+  try {
+    const result = await redisClient.ping();
+    return result === 'PONG';
+  } catch {
+    return false;
+  }
+}
+
+export { connectRedis, disconnectRedis, pingRedis, redisClient };

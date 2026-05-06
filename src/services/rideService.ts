@@ -3,6 +3,7 @@ import { Op, QueryTypes, Transaction } from 'sequelize';
 import { FARE_CONFIG } from '@/config/fareConfig';
 import { config } from '@/config/index';
 import { Ride, RideOffer, sequelize, User, Wallet, WalletTransaction } from '@/models/index';
+import { cacheGet, cacheSet } from '@/services/cacheService';
 import {
   OfferStatus,
   RideStatus,
@@ -45,7 +46,19 @@ interface CreateRideInput {
 
 // ── Fare Calculation ────────────────────────────────────────────────────────
 
-function calculateFare(input: FareEstimateInput): { fare: number; currency: string } {
+const FARE_CACHE_TTL = 3600; // 1 hour
+
+async function calculateFare(
+  input: FareEstimateInput,
+): Promise<{ fare: number; currency: string }> {
+  // Bucketed cache key: round distance to nearest 0.5km, minutes to nearest 1min
+  const distBucket = Math.round(input.distanceKm * 2) / 2;
+  const minBucket = Math.round(input.estimatedMinutes);
+  const cacheKey = `fare:${input.vehicleType}:${String(distBucket)}:${String(minBucket)}`;
+
+  const cached = await cacheGet<{ fare: number; currency: string }>(cacheKey);
+  if (cached) return cached;
+
   const { fare: fareConfig } = config;
   const type = input.vehicleType;
 
@@ -54,14 +67,16 @@ function calculateFare(input: FareEstimateInput): { fare: number; currency: stri
   const timeCost = input.estimatedMinutes * fareConfig.perMin[type];
   const raw = Math.round((baseFare + distanceCost + timeCost) * 100) / 100;
   const fare = Math.max(raw, FARE_CONFIG.MIN_FARE);
+  const result = { fare, currency: fareConfig.currency };
 
-  return { fare, currency: fareConfig.currency };
+  await cacheSet(cacheKey, result, FARE_CACHE_TTL);
+  return result;
 }
 
 // ── Request Ride ────────────────────────────────────────────────────────────
 
 async function requestRide(riderId: string, input: CreateRideInput): Promise<Ride> {
-  const { fare } = calculateFare({
+  const { fare } = await calculateFare({
     vehicleType: input.vehicleType,
     distanceKm: input.distanceKm,
     estimatedMinutes: input.estimatedMinutes,

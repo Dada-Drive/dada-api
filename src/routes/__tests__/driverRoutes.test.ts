@@ -1,6 +1,7 @@
 import request from 'supertest';
 
 import { app } from '@/app';
+import { updateDriverLocation } from '@/services/redisGeoService';
 import { generateTestToken } from '@/tests/helpers/auth';
 import {
   createTestDriverProfile,
@@ -160,6 +161,11 @@ describe('Driver Routes', () => {
         lastLng: 10.1815,
       });
       await createTestVehicle(profile.id);
+      await updateDriverLocation(driver.id, 36.8065, 10.1815, {
+        vehicleType: VehicleType.Economy,
+        rating: null,
+        fullName: driver.fullName,
+      });
 
       const rider = await createTestUser();
       const token = generateTestToken(rider.id, rider.role);

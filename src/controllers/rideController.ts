@@ -14,7 +14,7 @@ const getFareEstimate = asyncHandler(async (req: Request, res: Response): Promis
     estimatedMinutes: number;
   };
 
-  const result = rideService.calculateFare({ vehicleType, distanceKm, estimatedMinutes });
+  const result = await rideService.calculateFare({ vehicleType, distanceKm, estimatedMinutes });
   sendSuccess(res, result);
 });
 

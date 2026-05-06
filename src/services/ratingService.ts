@@ -1,6 +1,7 @@
 import { fn, literal, Transaction } from 'sequelize';
 
 import { DriverProfile, Rating, Ride, sequelize, User } from '@/models/index';
+import { cacheDel } from '@/services/cacheService';
 import { RideStatus } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { buildPaginationMeta, parsePaginationQuery } from '@/utils/pagination';
@@ -15,7 +16,7 @@ async function submitRating(
   score: number,
   comment?: string,
 ): Promise<Rating> {
-  return sequelize.transaction(
+  const rating = await sequelize.transaction(
     { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
     async (t) => {
       const ride = await Ride.findByPk(rideId, { transaction: t });
@@ -27,7 +28,7 @@ async function submitRating(
       const existing = await Rating.findOne({ where: { rideId }, transaction: t });
       if (existing) throw appError(ErrorCodes.RATING.RATING_ALREADY_EXISTS);
 
-      const rating = await Rating.create(
+      const created = await Rating.create(
         {
           rideId,
           riderId,
@@ -60,9 +61,14 @@ async function submitRating(
         }
       }
 
-      return rating;
+      return { created, driverId: ride.driverId };
     },
   );
+
+  // Invalidate driver profile cache after transaction commits
+  await cacheDel(`driver:${rating.driverId}:profile`);
+
+  return rating.created;
 }
 
 // ── Get Ride Rating ─────────────────────────────────────────────────────────

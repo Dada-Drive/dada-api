@@ -294,8 +294,8 @@ describe('Ride Service', () => {
   // ── Fare calculation ─────────────────────────────────────────────────────
 
   describe('calculateFare', () => {
-    it('applies MIN_FARE floor', () => {
-      const result = rideService.calculateFare({
+    it('applies MIN_FARE floor', async () => {
+      const result = await rideService.calculateFare({
         vehicleType: VehicleType.Economy,
         distanceKm: 0.1,
         estimatedMinutes: 1,
