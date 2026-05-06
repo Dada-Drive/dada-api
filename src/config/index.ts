@@ -39,6 +39,28 @@ const config = {
     apiKey: process.env.EASYSENDSMS_API_KEY || '',
     sender: process.env.OTP_SENDER || '',
   },
+  upload: {
+    storage: (process.env.UPLOAD_STORAGE || 'local') as 'local' | 's3' | 'cloudinary',
+    s3: {
+      bucket: process.env.UPLOAD_S3_BUCKET || '',
+      region: process.env.UPLOAD_S3_REGION || '',
+    },
+    cloudinary: {
+      cloud: process.env.UPLOAD_CLOUDINARY_CLOUD || '',
+      apiKey: process.env.UPLOAD_CLOUDINARY_KEY || '',
+      apiSecret: process.env.UPLOAD_CLOUDINARY_SECRET || '',
+    },
+  },
+  flouci: {
+    appToken: process.env.FLOUCI_APP_TOKEN || '',
+    appSecret: process.env.FLOUCI_APP_SECRET || '',
+  },
+  fare: {
+    baseFare: { economy: 2.5, premium: 5.0, van: 4.0 },
+    perKm: { economy: 1.2, premium: 2.0, van: 1.6 },
+    perMin: { economy: 0.3, premium: 0.5, van: 0.4 },
+    currency: 'TND',
+  },
   cors: {
     origins: process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || ['*'],
   },

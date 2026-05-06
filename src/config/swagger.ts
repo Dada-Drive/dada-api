@@ -24,6 +24,70 @@ const options: swaggerJsdoc.Options = {
         description: 'Root (health check)',
       },
     ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+        },
+      },
+      schemas: {
+        ErrorResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'VALIDATION_ERROR' },
+                message: { type: 'string', example: 'Validation failed' },
+                details: { type: 'object' },
+              },
+            },
+          },
+        },
+        SuccessResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: true },
+            data: { type: 'object' },
+          },
+        },
+        PaginatedResponse: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: true },
+            data: { type: 'array', items: { type: 'object' } },
+            meta: {
+              type: 'object',
+              properties: {
+                total: { type: 'integer', example: 156 },
+                page: { type: 'integer', example: 1 },
+                limit: { type: 'integer', example: 20 },
+                pages: { type: 'integer', example: 8 },
+              },
+            },
+          },
+        },
+      },
+    },
+    tags: [
+      { name: 'Auth', description: 'Authentication & authorization' },
+      { name: 'Users', description: 'User profile management' },
+      { name: 'Driver', description: 'Driver profile, vehicle, status, location' },
+      { name: 'Rides', description: 'Ride CRUD and lifecycle' },
+      { name: 'Ride Stops', description: 'Ride intermediate stops' },
+      { name: 'Shared Rides', description: 'Shared ride management' },
+      { name: 'Wallet', description: 'Wallet balance and transactions' },
+      { name: 'Ratings', description: 'Ride ratings' },
+      { name: 'Admin', description: 'Admin panel operations' },
+      { name: 'Vehicles', description: 'Vehicle catalog reference data' },
+      { name: 'Meta', description: 'Enum and reference data' },
+      { name: 'Notifications', description: 'Device token management' },
+      { name: 'Upload', description: 'File uploads' },
+      { name: 'Health', description: 'Health check' },
+    ],
   },
   apis: [path.join(__dirname, '../routes/*.{ts,js}')],
 };

@@ -74,4 +74,14 @@ const otpSendLimiter = rateLimit({
   handler: rateLimitHandler,
 });
 
-export { globalLimiter, loginLimiter, otpSendLimiter, refreshLimiter };
+// Upload: 10 per hour per IP
+const uploadLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: createRedisStore('upload'),
+  handler: rateLimitHandler,
+});
+
+export { globalLimiter, loginLimiter, otpSendLimiter, refreshLimiter, uploadLimiter };

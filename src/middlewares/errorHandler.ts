@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import multer from 'multer';
 import {
   ConnectionError,
   DatabaseError,
@@ -29,6 +30,33 @@ function errorHandler(err: Error, req: Request, res: Response, _next: NextFuncti
         code: err.code,
         message: err.message,
         ...(err.details && { details: err.details }),
+      },
+    });
+    return;
+  }
+
+  // Multer errors (file upload issues)
+  if (err instanceof multer.MulterError) {
+    const statusMap: Record<string, number> = {
+      LIMIT_FILE_SIZE: 413,
+      LIMIT_FILE_COUNT: 400,
+      LIMIT_UNEXPECTED_FILE: 400,
+    };
+
+    const status = statusMap[err.code] || 400;
+
+    logger.warn('Upload error', {
+      code: err.code,
+      field: err.field,
+      path: req.path,
+      method: req.method,
+    });
+
+    res.status(status).json({
+      success: false,
+      error: {
+        code: `UPLOAD_${err.code}`,
+        message: err.message,
       },
     });
     return;

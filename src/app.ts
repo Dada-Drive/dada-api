@@ -9,8 +9,20 @@ import { swaggerSpec } from '@/config/swagger';
 import { correlationId } from '@/middlewares/correlationId';
 import { errorHandler } from '@/middlewares/errorHandler';
 import { notFound } from '@/middlewares/notFound';
+import { adminRoutes } from '@/routes/adminRoutes';
 import { authRoutes } from '@/routes/authRoutes';
+import { driverRoutes } from '@/routes/driverRoutes';
 import { healthRoutes } from '@/routes/healthRoutes';
+import { metaRoutes } from '@/routes/metaRoutes';
+import { notificationRoutes } from '@/routes/notificationRoutes';
+import { ratingRoutes } from '@/routes/ratingRoutes';
+import { rideRoutes } from '@/routes/rideRoutes';
+import { rideStopRoutes } from '@/routes/rideStopRoutes';
+import { sharedRideRoutes } from '@/routes/sharedRideRoutes';
+import { uploadRoutes } from '@/routes/uploadRoutes';
+import { userRoutes } from '@/routes/userRoutes';
+import { vehicleCatalogRoutes } from '@/routes/vehicleCatalogRoutes';
+import { walletRoutes } from '@/routes/walletRoutes';
 import { logger } from '@/utils/logger';
 
 const app = express();
@@ -57,9 +69,27 @@ if (config.server.nodeEnv !== 'production') {
   app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 }
 
+// API version header
+app.use('/api/v1', (_req, res, next) => {
+  res.setHeader('X-API-Version', 'v1');
+  next();
+});
+
 // Routes
 app.use(healthRoutes);
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/driver', driverRoutes);
+app.use('/api/v1/rides', rideRoutes);
+app.use('/api/v1/rides/:id/stops', rideStopRoutes);
+app.use('/api/v1/shared-rides', sharedRideRoutes);
+app.use('/api/v1/wallet', walletRoutes);
+app.use('/api/v1/ratings', ratingRoutes);
+app.use('/api/v1/admin', adminRoutes);
+app.use('/api/v1/vehicles', vehicleCatalogRoutes);
+app.use('/api/v1/meta', metaRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/upload', uploadRoutes);
 
 // 404 handler
 app.use(notFound);
