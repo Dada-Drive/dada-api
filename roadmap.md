@@ -7,7 +7,7 @@
 
 ---
 
-## Phase 1: Project Scaffolding & Config (3–4 days)
+## Phase 1: Project Scaffolding & Config
 
 ### Goals
 - Establish TypeScript project with strict compilation, linting, and formatting
@@ -19,10 +19,10 @@
 - Add upload configuration placeholder (multer + config for Phase 5)
 
 ### Tasks
-- [ ] Initialize Node.js project: `npm init`, install TypeScript, ts-node-dev
-- [ ] Configure `tsconfig.json` with strict mode, path aliases (`@/config`, `@/services`, `@/models`, etc.)
-- [ ] Install and configure ESLint (typescript-eslint) + Prettier with pre-commit hooks (husky + lint-staged)
-- [ ] Create directory structure:
+- [x] Initialize Node.js project: `npm init`, install TypeScript, ts-node-dev
+- [x] Configure `tsconfig.json` with strict mode, path aliases (`@/config`, `@/services`, `@/models`, etc.)
+- [x] Install and configure ESLint (typescript-eslint) + Prettier with pre-commit hooks (husky + lint-staged)
+- [x] Create directory structure:
   ```
   src/
   ├── config/          # db.ts, redis.ts, firebase.ts, fareConfig.ts, validateEnv.ts
@@ -40,17 +40,17 @@
   ├── app.ts           # Express app setup, middleware mounting, route registration
   └── server.ts        # Entry point: HTTP server, graceful shutdown, startup sequence
   ```
-- [ ] Create `.env.example` with all required variables (see Phase 4 for full list)
-- [ ] Create `src/config/validateEnv.ts` — crash on missing required env vars at startup
-- [ ] Create `Dockerfile` (multi-stage: build with `node:20-alpine`, copy compiled JS, production deps only)
-- [ ] Create `docker-compose.yml`: app (with hot-reload volume), PostgreSQL 16, Redis 7
-- [ ] Create `docker-compose.test.yml`: isolated PostgreSQL + Redis for test runs
-- [ ] Implement `src/server.ts` with:
+- [x] Create `.env.example` with all required variables (see Phase 4 for full list)
+- [x] Create `src/config/validateEnv.ts` — crash on missing required env vars at startup
+- [x] Create `Dockerfile` (multi-stage: build with `node:20-alpine`, copy compiled JS, production deps only)
+- [x] Create `docker-compose.yml`: app (with hot-reload volume), PostgreSQL 16, Redis 7
+- [x] Create `docker-compose.test.yml`: isolated PostgreSQL + Redis for test runs
+- [x] Implement `src/server.ts` with:
   - HTTP server creation
   - Startup sequence: validate env → connect DB → connect Redis → init Firebase → start listening
   - `SIGTERM`/`SIGINT` handlers: stop accepting connections → drain in-flight requests → close DB pool → close Redis → exit 0
   - Unhandled rejection / uncaught exception handlers (log + exit 1)
-- [ ] Create `src/app.ts` with:
+- [x] Create `src/app.ts` with:
   - Helmet (security headers)
   - CORS (restricted to `ALLOWED_ORIGINS` from env)
   - Morgan (structured request logging)
@@ -63,17 +63,17 @@
   - Global error handler
 
 #### Swagger / OpenAPI Documentation
-- [ ] Install `swagger-jsdoc` + `swagger-ui-express`
-- [ ] Create `src/config/swagger.ts` — OpenAPI 3.0 spec config (title, version, servers, scans route files for JSDoc annotations)
-- [ ] Mount Swagger UI at `/docs` (development and staging only, gated behind `NODE_ENV !== 'production'`)
-- [ ] Expose spec JSON at `GET /api/spec.json` for programmatic access (mobile teams, Postman import, openapi-generator)
-- [ ] Add `@openapi` JSDoc annotation to health route as working example pattern
-- [ ] All future routes (Phase 5+) must include `@openapi` JSDoc annotations for Swagger
+- [x] Install `swagger-jsdoc` + `swagger-ui-express`
+- [x] Create `src/config/swagger.ts` — OpenAPI 3.0 spec config (title, version, servers, scans route files for JSDoc annotations)
+- [x] Mount Swagger UI at `/docs` (development and staging only, gated behind `NODE_ENV !== 'production'`)
+- [x] Expose spec JSON at `GET /api/spec.json` for programmatic access (mobile teams, Postman import, openapi-generator)
+- [x] Add `@openapi` JSDoc annotation to health route as working example pattern
+- [x] All future routes (Phase 5+) must include `@openapi` JSDoc annotations for Swagger
 
 #### Upload Configuration (Placeholder for Phase 5)
-- [ ] Install `multer` as runtime dependency
-- [ ] Create `src/config/uploadConfig.ts` with constants: `MAX_FILE_SIZE` (5MB), `ALLOWED_MIME_TYPES` (image/jpeg, image/png, image/webp), `MAX_FILES_PER_REQUEST` (5), `UPLOAD_DIR`
-- [ ] Add `uploads/` to `.gitignore`
+- [x] Install `multer` as runtime dependency
+- [x] Create `src/config/uploadConfig.ts` with constants: `MAX_FILE_SIZE` (5MB), `ALLOWED_MIME_TYPES` (image/jpeg, image/png, image/webp), `MAX_FILES_PER_REQUEST` (5), `UPLOAD_DIR`
+- [x] Add `uploads/` to `.gitignore`
 
 ### Deliverables
 - `package.json` with all base dependencies and scripts (`dev`, `build`, `start`, `lint`, `format`, `test`)
@@ -106,7 +106,7 @@
 
 ---
 
-## Phase 2: Database & Sequelize (5–7 days)
+## Phase 2: Database & Sequelize
 
 ### Goals
 - Initialize Sequelize with TypeScript and migration-based schema management
@@ -118,68 +118,78 @@
 ### Tasks
 
 #### Sequelize Setup
-- [ ] Install `sequelize`, `sequelize-cli`, `sequelize-typescript`, `pg`, `pg-hstore`
-- [ ] Create `src/config/db.ts`: Sequelize instance with connection pool (min: 2, max: 10), SSL config (`rejectUnauthorized: true` in production), query logging via Winston, retry logic
-- [ ] Create `.sequelizerc` pointing to TypeScript-compatible paths
-- [ ] Configure Sequelize CLI for TypeScript migrations
+- [x] Install `sequelize`, `sequelize-cli`, `pg`, `pg-hstore` (plain Sequelize v6 with `Model.init()` + `InferAttributes` — no decorators)
+- [x] Create `src/models/index.ts`: Sequelize instance with connection pool (min: 2, max: 10), SSL config (`rejectUnauthorized: true` in production), query logging via Winston
+- [x] Create `.sequelizerc` pointing to TypeScript-compatible paths
+- [x] Create `src/config/database.js` for Sequelize CLI config
 
 #### Model Definitions (14 models)
-- [ ] `User` — id (UUID, PK), full_name, email (unique, nullable), phone (unique), password_hash, role (ENUM: rider/driver/admin/pending), avatar_url, google_id (nullable), is_verified, is_active, created_at, updated_at
-- [ ] `DriverProfile` — user_id (UUID, FK → users, 1:1), license_number, license_expiry, cin, cin_delivered_at, cin_photo_front, cin_photo_back, license_photo_front, license_photo_back, is_approved, is_online, rating (DECIMAL 3,2), total_rides, last_lat (DECIMAL 10,8), last_lng (DECIMAL 11,8), created_at, updated_at
-- [ ] `Vehicle` — id (UUID, PK), driver_id (FK → driver_profiles, 1:1), make, model, year, plate_number (unique), color, vehicle_type (ENUM: economy/premium/van), doors, seats, photo_front, photo_side, photo_back, is_active, created_at, updated_at
-- [ ] `Ride` — id (UUID, PK), rider_id (FK → users), driver_id (FK → users, nullable), passenger_name, passenger_phone, vehicle_type (ENUM), status (ENUM: pending/offered/accepted/in_progress/completed/cancelled), pickup_lat, pickup_lng, pickup_address, dropoff_lat, dropoff_lng, dropoff_address, distance_km, estimated_minutes, calculated_fare, final_fare, is_shared, shared_seats_available, commission_rate, commission_amount, scheduled_at, expires_at, started_at, arrived_at, approached_notified, completed_at, cancelled_by, cancel_reason, created_at, updated_at
-  - **ADD:** `CHECK (commission_rate BETWEEN 0 AND 100)`
-- [ ] `RideOffer` — id (UUID, PK), ride_id (FK → rides), driver_id (FK → users), status (ENUM: pending/accepted/rejected/expired), offered_fare, created_at, updated_at
-- [ ] `RideStop` — id (UUID, PK), ride_id (FK → rides), address, lat, lng, order_index, arrived_at, left_at, wait_minutes, created_at
-- [ ] `SharedRidePassenger` — id (UUID, PK), primary_ride_id (FK → rides), passenger_ride_id (FK → rides), rider_id (FK → users), pickup_lat, pickup_lng, pickup_address, dropoff_lat, dropoff_lng, dropoff_address, estimated_fare, final_fare, pickup_order, dropoff_order, picked_up_at, dropped_off_at, status (ENUM: pending/confirmed/picked_up/dropped_off/cancelled), created_at
-- [ ] `Rating` — id (UUID, PK), ride_id (FK → rides, unique), rider_id (FK → users), driver_id (FK → users), score, comment, created_at
-  - **ADD:** `CHECK (score BETWEEN 1 AND 5)`
-- [ ] `Wallet` — id (UUID, PK), owner_id (FK → users), balance (DECIMAL 10,2), currency (default 'TND'), status (ENUM: active/suspended/closed), created_at, updated_at
-  - **ADD:** `CHECK (balance >= 0)`
-- [ ] `WalletTransaction` — id (UUID, PK), wallet_owner_id (FK → users), type (ENUM: topup_manual/topup_online/commission/ride_earning/withdrawal), amount (DECIMAL 10,2), status (ENUM: pending/completed/failed/refunded), reference_id, description, created_at
-  - **ADD:** `UNIQUE (reference_id)` where reference_id is not null
-- [ ] `OtpCode` — id (UUID, PK), phone, code_hash, attempts, is_used, expires_at, created_at
-- [ ] `RefreshToken` — id (UUID, PK), user_id (FK → users), token, expires_at, created_at
-- [ ] `DeviceToken` — id (UUID, PK), user_id (FK → users), token, platform (ENUM: ios/android), updated_at
+- [x] `User` — id (UUID, PK), full_name, email (unique, nullable), phone (unique), password_hash, role (ENUM: rider/driver/admin/pending), avatar_url, google_id (nullable), is_verified, is_active, deleted_at (paranoid), created_at, updated_at
+- [x] `DriverProfile` — id (UUID, PK), user_id (FK → users, 1:1), license_number, license_expiry, cin, cin_delivered_at, cin_photo_front, cin_photo_back, license_photo_front, license_photo_back, is_approved, is_online, rating (DECIMAL 3,2), total_rides, last_lat (DECIMAL 10,8), last_lng (DECIMAL 11,8), last_seen_at, deleted_at (paranoid), created_at, updated_at
+- [x] `Vehicle` — id (UUID, PK), driver_id (FK → driver_profiles, 1:1), make, model, year, plate_number (unique), color, vehicle_type (ENUM: economy/premium/van), doors, seats, photo_front, photo_side, photo_back, is_active, created_at, updated_at
+- [x] `Ride` — id (UUID, PK), rider_id (FK → users), driver_id (FK → users, nullable), passenger_name, passenger_phone, vehicle_type (ENUM), status (ENUM: pending/offered/accepted/in_progress/completed/cancelled), pickup_lat, pickup_lng, pickup_address, dropoff_lat, dropoff_lng, dropoff_address, distance_km, estimated_minutes, calculated_fare, final_fare, is_shared, shared_seats_available, commission_rate, commission_amount, scheduled_at, expires_at, started_at, arrived_at, approached_notified, completed_at, cancelled_by, cancel_reason, created_at, updated_at
+  - **ADDED:** `CHECK (commission_rate BETWEEN 0 AND 100)`
+- [x] `RideOffer` — id (UUID, PK), ride_id (FK → rides), driver_id (FK → users), status (ENUM: pending/accepted/rejected/expired), offered_fare, created_at, updated_at
+  - **ADDED:** `UNIQUE(ride_id, driver_id)`
+- [x] `RideStop` — id (UUID, PK), ride_id (FK → rides), address, lat, lng, order_index, arrived_at, left_at, wait_minutes, created_at
+  - **ADDED:** `UNIQUE(ride_id, order_index)`
+- [x] `SharedRidePassenger` — id (UUID, PK), primary_ride_id (FK → rides), passenger_ride_id (FK → rides), rider_id (FK → users), pickup_lat, pickup_lng, pickup_address, dropoff_lat, dropoff_lng, dropoff_address, estimated_fare, final_fare, pickup_order, dropoff_order, picked_up_at, dropped_off_at, status (ENUM: pending/confirmed/picked_up/dropped_off/cancelled), created_at, updated_at
+  - **ADDED:** `UNIQUE(primary_ride_id, rider_id)`
+- [x] `Rating` — id (UUID, PK), ride_id (FK → rides, unique), rider_id (FK → users), driver_id (FK → users), score, comment, created_at
+  - **ADDED:** `CHECK (score BETWEEN 1 AND 5)`
+- [x] `Wallet` — id (UUID, PK), owner_id (FK → users, unique), balance (DECIMAL 12,2), currency (default 'TND'), status (ENUM: active/suspended/closed), created_at, updated_at
+  - **ADDED:** `CHECK (balance >= 0)`
+- [x] `WalletTransaction` — id (UUID, PK), wallet_owner_id (FK → users), type (ENUM: topup_manual/topup_online/commission/ride_earning/withdrawal), amount (DECIMAL 12,2), status (ENUM: pending/completed/failed/refunded), reference_id, description, created_at
+  - **ADDED:** `UNIQUE (reference_id) WHERE reference_id IS NOT NULL` (partial unique)
+  - **ADDED:** `CHECK (amount > 0)`
+- [x] `OtpCode` — id (UUID, PK), phone, code_hash, attempts, is_used, expires_at, created_at
+- [x] `RefreshToken` — id (UUID, PK), user_id (FK → users), token (unique), expires_at, created_at
+- [x] `DeviceToken` — id (UUID, PK), user_id (FK → users), token, platform (ENUM: ios/android), created_at, updated_at
+  - **ADDED:** `UNIQUE(user_id, platform)`
 
 #### Associations
-- [ ] `User.hasOne(DriverProfile, { foreignKey: 'user_id' })`
-- [ ] `User.hasOne(Wallet, { foreignKey: 'owner_id' })`
-- [ ] `User.hasMany(Ride, { as: 'ridesAsRider', foreignKey: 'rider_id' })`
-- [ ] `User.hasMany(Ride, { as: 'ridesAsDriver', foreignKey: 'driver_id' })`
-- [ ] `User.hasMany(RefreshToken, { foreignKey: 'user_id' })`
-- [ ] `User.hasMany(DeviceToken, { foreignKey: 'user_id' })`
-- [ ] `User.hasMany(WalletTransaction, { foreignKey: 'wallet_owner_id' })`
-- [ ] `DriverProfile.hasOne(Vehicle, { foreignKey: 'driver_id' })`
-- [ ] `DriverProfile.belongsTo(User, { foreignKey: 'user_id' })`
-- [ ] `Ride.hasMany(RideOffer, { foreignKey: 'ride_id' })`
-- [ ] `Ride.hasMany(RideStop, { foreignKey: 'ride_id' })`
-- [ ] `Ride.hasMany(SharedRidePassenger, { as: 'sharedPassengers', foreignKey: 'primary_ride_id' })`
-- [ ] `Ride.hasOne(Rating, { foreignKey: 'ride_id' })`
-- [ ] `Ride.belongsTo(User, { as: 'rider', foreignKey: 'rider_id' })`
-- [ ] `Ride.belongsTo(User, { as: 'driver', foreignKey: 'driver_id' })`
-- [ ] `RideOffer.belongsTo(Ride, { foreignKey: 'ride_id' })`
-- [ ] `RideOffer.belongsTo(User, { as: 'driver', foreignKey: 'driver_id' })`
+- [x] `User.hasOne(DriverProfile, { foreignKey: 'userId', as: 'driverProfile' })`
+- [x] `User.hasOne(Wallet, { foreignKey: 'ownerId', as: 'wallet' })`
+- [x] `User.hasMany(Ride, { as: 'ridesAsRider', foreignKey: 'riderId' })`
+- [x] `User.hasMany(Ride, { as: 'ridesAsDriver', foreignKey: 'driverId' })`
+- [x] `User.hasMany(RefreshToken, { foreignKey: 'userId', as: 'refreshTokens' })`
+- [x] `User.hasMany(DeviceToken, { foreignKey: 'userId', as: 'deviceTokens' })`
+- [x] `User.hasMany(WalletTransaction, { foreignKey: 'walletOwnerId', as: 'transactions' })`
+- [x] `DriverProfile.hasOne(Vehicle, { foreignKey: 'driverId', as: 'vehicle' })`
+- [x] `DriverProfile.belongsTo(User, { foreignKey: 'userId', as: 'user' })`
+- [x] `Ride.hasMany(RideOffer, { foreignKey: 'rideId', as: 'offers' })`
+- [x] `Ride.hasMany(RideStop, { foreignKey: 'rideId', as: 'stops' })`
+- [x] `Ride.hasMany(SharedRidePassenger, { as: 'sharedPassengers', foreignKey: 'primaryRideId' })`
+- [x] `Ride.hasOne(Rating, { foreignKey: 'rideId', as: 'rating' })`
+- [x] `Ride.belongsTo(User, { as: 'rider', foreignKey: 'riderId' })`
+- [x] `Ride.belongsTo(User, { as: 'driver', foreignKey: 'driverId' })`
+- [x] `RideOffer.belongsTo(Ride, { foreignKey: 'rideId', as: 'ride' })`
+- [x] `RideOffer.belongsTo(User, { as: 'driver', foreignKey: 'driverId' })`
 
 #### Indexes (from audit + new)
-- [ ] `rides(status, expires_at)` — used by `findAvailableForDriver`
-- [ ] `rides(rider_id, status)` — used by rider's ride history
-- [ ] `rides(driver_id, status)` — used by driver's ride history
-- [ ] `ride_offers(ride_id, status)` — used by offer queries per ride
-- [ ] `ride_offers(driver_id, status)` — used to check if driver has active rides
-- [ ] `wallet_transactions(reference_id)` — used by topup confirmation idempotency
-- [ ] `wallet_transactions(wallet_owner_id, created_at)` — used by transaction history
-- [ ] `driver_profiles(is_online, is_approved)` partial index — used by nearby driver query
-- [ ] `otp_codes(phone, is_used, expires_at)` — used by OTP verification
-- [ ] `refresh_tokens(user_id)` — used by token cleanup
-- [ ] `refresh_tokens(token)` — used by token lookup
-- [ ] `device_tokens(user_id)` — used by notification sends
+- [x] `rides(status, expires_at)` — used by `findAvailableForDriver`
+- [x] `rides(rider_id, status)` — used by rider's ride history
+- [x] `rides(driver_id, status)` — used by driver's ride history
+- [x] `rides(status) WHERE is_shared = true` — shared ride matching (partial)
+- [x] `rides(scheduled_at) WHERE status = 'pending' AND scheduled_at IS NOT NULL` — scheduled activation (partial)
+- [x] `ride_offers(ride_id, status)` — used by offer queries per ride
+- [x] `ride_offers(driver_id, status)` — used to check if driver has active rides
+- [x] `wallet_transactions(reference_id) WHERE NOT NULL` — used by topup confirmation idempotency (partial unique)
+- [x] `wallet_transactions(wallet_owner_id, created_at)` — used by transaction history
+- [x] `driver_profiles(is_online, is_approved) WHERE is_online = true AND is_approved = true` — nearby driver query (partial)
+- [x] `otp_codes(phone, is_used, expires_at)` — used by OTP verification
+- [x] `refresh_tokens(user_id)` — used by token cleanup
+- [x] `refresh_tokens(token)` — unique constraint from table creation
+- [x] `device_tokens(user_id)` — used by notification sends
+- [x] `ratings(driver_id, created_at)` — driver rating history
+- [x] `users(email) WHERE email IS NOT NULL` — partial unique
+- [x] `users(google_id) WHERE google_id IS NOT NULL` — partial unique
 
 #### Migrations & Seeds
-- [ ] Generate Sequelize CLI migrations for all 14 tables (sequential, timestamped)
-- [ ] Each migration includes both `up` and `down` functions
-- [ ] Create seeders: admin user, 5 test riders, 3 test drivers with profiles + vehicles, sample rides in various states, wallet transactions
-- [ ] Add npm scripts: `migrate`, `migrate:undo`, `seed`, `seed:undo`
+- [x] Generate 16 Sequelize CLI migrations for all tables, indexes, and constraints (sequential, timestamped, JS)
+- [x] Each migration includes both `up` and `down` functions
+- [x] Create 4 seeders: 10 users (admin + 5 riders + 3 drivers + 1 pending), 3 driver profiles + vehicles, 10 wallets, 5 rides in various states + offers + stops + rating + transactions
+- [x] Add npm scripts: `db:migrate`, `db:migrate:undo`, `db:migrate:undo:all`, `db:seed`, `db:seed:undo`, `db:reset`
 
 ### Deliverables
 - 14 Sequelize model files in `src/models/`
@@ -206,7 +216,7 @@
 
 ---
 
-## Phase 3: Core Infrastructure (3–4 days)
+## Phase 3: Core Infrastructure
 
 ### Goals
 - Build the shared utility layer that all other modules depend on
@@ -297,7 +307,7 @@
 
 ---
 
-## Phase 4: Authentication & Authorization (4–5 days)
+## Phase 4: Authentication & Authorization
 
 ### Goals
 - Implement JWT-based authentication with access/refresh token pattern
@@ -408,7 +418,7 @@ REDIS_URL
 
 ---
 
-## Phase 5: API Layer — CRUD Modules (7–10 days)
+## Phase 5: API Layer — CRUD Modules
 
 ### Goals
 - Rebuild all REST endpoints under `/api/v1/` prefix
@@ -613,7 +623,7 @@ REDIS_URL
 
 ---
 
-## Phase 6: Critical Business Logic — Wallet & Rides (5–7 days)
+## Phase 6: Critical Business Logic — Wallet & Rides
 
 ### Goals
 - Fix ALL race conditions and financial bugs identified in the audit
@@ -748,7 +758,7 @@ REDIS_URL
 
 ---
 
-## Phase 7: Redis & Caching (3–4 days)
+## Phase 7: Redis & Caching
 
 ### Goals
 - Implement driver geospatial indexing for fast nearby driver queries
@@ -824,7 +834,7 @@ REDIS_URL
 
 ---
 
-## Phase 8: Socket.IO Real-Time (5–7 days)
+## Phase 8: Socket.IO Real-Time
 
 ### Goals
 - Replace polling-based updates with event-driven communication
@@ -905,7 +915,7 @@ REDIS_URL
 
 ---
 
-## Phase 9: BullMQ Background Jobs (4–5 days)
+## Phase 9: BullMQ Background Jobs
 
 ### Goals
 - Replace cron-based scheduled tasks with BullMQ delayed jobs
@@ -1000,7 +1010,7 @@ REDIS_URL
 
 ---
 
-## Phase 10: Notifications System (2–3 days)
+## Phase 10: Notifications System
 
 ### Goals
 - Add persistent notification storage in database
@@ -1077,7 +1087,7 @@ REDIS_URL
 
 ---
 
-## Phase 11: Observability & Monitoring (2–3 days)
+## Phase 11: Observability & Monitoring
 
 ### Goals
 - Add error tracking with full context
@@ -1153,7 +1163,7 @@ REDIS_URL
 
 ---
 
-## Phase 12: Testing (5–7 days)
+## Phase 12: Testing
 
 ### Goals
 - Set up Jest + Supertest with isolated test database
@@ -1276,7 +1286,7 @@ REDIS_URL
 
 ---
 
-## Phase 13: CI/CD & Production Hardening (3–4 days)
+## Phase 13: CI/CD & Production Hardening
 
 ### Goals
 - Set up GitHub Actions pipeline for automated testing and deployment
@@ -1390,27 +1400,23 @@ REDIS_URL
 
 ## Phase Summary
 
-| Phase | Duration | Dependencies |
-|-------|----------|-------------|
-| 1. Scaffolding & Config | 3–4 days | None |
-| 2. Database & Sequelize | 5–7 days | Phase 1 |
-| 3. Core Infrastructure | 3–4 days | Phase 1 |
-| 4. Authentication | 4–5 days | Phases 2, 3 |
-| 5. API Layer — CRUD | 7–10 days | Phase 4 |
-| 6. Business Logic (Wallet & Rides) | 5–7 days | Phase 5 |
-| 7. Redis & Caching | 3–4 days | Phase 4 |
-| 8. Socket.IO Real-Time | 5–7 days | Phases 6, 7 |
-| 9. BullMQ Jobs | 4–5 days | Phases 6, 7 |
-| 10. Notifications | 2–3 days | Phase 9 |
-| 11. Observability | 2–3 days | Phase 3 |
-| 12. Testing | 5–7 days | Phase 6 |
-| 13. CI/CD & Hardening | 3–4 days | Phase 12 |
-| **Total** | **~52–70 days** | Sequential with some parallelism |
+| Phase | Dependencies |
+|-------|-------------|
+| 1. Scaffolding & Config | None |
+| 2. Database & Sequelize | Phase 1 |
+| 3. Core Infrastructure | Phase 1 |
+| 4. Authentication | Phases 2, 3 |
+| 5. API Layer — CRUD | Phase 4 |
+| 6. Business Logic (Wallet & Rides) | Phase 5 |
+| 7. Redis & Caching | Phase 4 |
+| 8. Socket.IO Real-Time | Phases 6, 7 |
+| 9. BullMQ Jobs | Phases 6, 7 |
+| 10. Notifications | Phase 9 |
+| 11. Observability | Phase 3 |
+| 12. Testing | Phase 6 |
+| 13. CI/CD & Hardening | Phase 12 |
 
 **Parallelism opportunities:**
 - Phases 7 + 11 can start as soon as Phase 4 is complete
 - Phases 8 + 9 can be worked in parallel after Phase 6
 - Phase 12 testing can begin alongside Phase 8/9 development
-
-**Realistic timeline for 1 developer:** 10–14 weeks  
-**Realistic timeline for 2 developers:** 6–8 weeks

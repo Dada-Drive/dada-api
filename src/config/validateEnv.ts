@@ -11,8 +11,10 @@ const requirements: EnvRequirement[] = [
   { key: 'ALLOWED_ORIGINS', required: true, envs: ['development', 'staging', 'production'] },
   { key: 'LOG_LEVEL', required: true, envs: ['development', 'staging', 'production'] },
 
-  // Database & Redis — required in staging/production, optional in dev (Phase 2+)
-  { key: 'DATABASE_URL', required: true, envs: ['staging', 'production'] },
+  // Database — required in all environments
+  { key: 'DATABASE_URL', required: true, envs: ['development', 'staging', 'production'] },
+
+  // Redis — required in staging/production, optional in dev (Phase 7+)
   { key: 'REDIS_URL', required: true, envs: ['staging', 'production'] },
 
   // JWT — required once auth is implemented (Phase 4+)
