@@ -1,6 +1,6 @@
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 
-import { Ride, SharedRidePassenger, User } from '@/models/index';
+import { Ride, sequelize, SharedRidePassenger, User } from '@/models/index';
 import { RideStatus, SharedPassengerStatus } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { buildPaginationMeta, parsePaginationQuery } from '@/utils/pagination';
@@ -47,28 +47,46 @@ async function joinSharedRide(
   riderId: string,
   input: JoinSharedRideInput,
 ): Promise<SharedRidePassenger> {
-  const ride = await Ride.findByPk(rideId);
-  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
-  if (!ride.isShared) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
-  if (!ride.sharedSeatsAvailable || ride.sharedSeatsAvailable <= 0) {
-    throw appError(ErrorCodes.GENERAL.VALIDATION_ERROR, { message: 'No seats available' });
-  }
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (!ride.isShared) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
+      if (!ride.sharedSeatsAvailable || ride.sharedSeatsAvailable <= 0) {
+        throw appError(ErrorCodes.GENERAL.VALIDATION_ERROR, { message: 'No seats available' });
+      }
 
-  const passenger = await SharedRidePassenger.create({
-    primaryRideId: rideId,
-    riderId,
-    pickupLat: input.pickupLat,
-    pickupLng: input.pickupLng,
-    pickupAddress: input.pickupAddress,
-    dropoffLat: input.dropoffLat,
-    dropoffLng: input.dropoffLng,
-    dropoffAddress: input.dropoffAddress,
-  });
+      const existing = await SharedRidePassenger.findOne({
+        where: { primaryRideId: rideId, riderId },
+        transaction: t,
+      });
+      if (existing) {
+        throw appError(ErrorCodes.GENERAL.VALIDATION_ERROR, {
+          message: 'Already joined this ride',
+        });
+      }
 
-  ride.sharedSeatsAvailable -= 1;
-  await ride.save();
+      const passenger = await SharedRidePassenger.create(
+        {
+          primaryRideId: rideId,
+          riderId,
+          pickupLat: input.pickupLat,
+          pickupLng: input.pickupLng,
+          pickupAddress: input.pickupAddress,
+          dropoffLat: input.dropoffLat,
+          dropoffLng: input.dropoffLng,
+          dropoffAddress: input.dropoffAddress,
+        },
+        { transaction: t },
+      );
 
-  return passenger;
+      ride.sharedSeatsAvailable -= 1;
+      await ride.save({ transaction: t });
+
+      return passenger;
+    },
+  );
 }
 
 // ── Get Passengers ──────────────────────────────────────────────────────────
@@ -81,12 +99,21 @@ async function getPassengers(rideId: string): Promise<SharedRidePassenger[]> {
     where: { primaryRideId: rideId },
     include: [{ model: User, as: 'rider', attributes: ['id', 'fullName', 'avatarUrl', 'phone'] }],
     order: [['pickupOrder', 'ASC NULLS LAST']],
+    limit: 100,
   });
 }
 
 // ── Mark Picked Up ──────────────────────────────────────────────────────────
 
-async function markPickedUp(rideId: string, passengerId: string): Promise<SharedRidePassenger> {
+async function markPickedUp(
+  rideId: string,
+  passengerId: string,
+  userId: string,
+): Promise<SharedRidePassenger> {
+  const ride = await Ride.findByPk(rideId);
+  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+  if (ride.driverId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+
   const passenger = await SharedRidePassenger.findOne({
     where: { id: passengerId, primaryRideId: rideId },
   });
@@ -100,7 +127,15 @@ async function markPickedUp(rideId: string, passengerId: string): Promise<Shared
 
 // ── Mark Dropped Off ────────────────────────────────────────────────────────
 
-async function markDroppedOff(rideId: string, passengerId: string): Promise<SharedRidePassenger> {
+async function markDroppedOff(
+  rideId: string,
+  passengerId: string,
+  userId: string,
+): Promise<SharedRidePassenger> {
+  const ride = await Ride.findByPk(rideId);
+  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+  if (ride.driverId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+
   const passenger = await SharedRidePassenger.findOne({
     where: { id: passengerId, primaryRideId: rideId },
   });

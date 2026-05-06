@@ -1,8 +1,8 @@
-import { Op } from 'sequelize';
+import { Op, Transaction } from 'sequelize';
 
 import { config } from '@/config/index';
-import { Ride, RideOffer, User } from '@/models/index';
-import { RideStatus, VehicleType } from '@/types/enums';
+import { Ride, RideOffer, sequelize, User } from '@/models/index';
+import { OfferStatus, RideStatus, VehicleType } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { parseFilters, parseSorting } from '@/utils/filtering';
 import { buildPaginationMeta, parsePaginationQuery } from '@/utils/pagination';
@@ -151,7 +151,7 @@ async function getScheduledRides(
 
 // ── Get Ride Details ────────────────────────────────────────────────────────
 
-async function getRideDetails(rideId: string): Promise<Ride> {
+async function getRideDetails(rideId: string, userId: string): Promise<Ride> {
   const ride = await Ride.findByPk(rideId, {
     include: [
       { model: User, as: 'rider', attributes: ['id', 'fullName', 'avatarUrl', 'phone'] },
@@ -159,43 +159,53 @@ async function getRideDetails(rideId: string): Promise<Ride> {
     ],
   });
   if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+  if (ride.riderId !== userId && ride.driverId !== userId) {
+    throw appError(ErrorCodes.AUTH.FORBIDDEN);
+  }
   return ride;
 }
 
 // ── Get Ride Offers ─────────────────────────────────────────────────────────
 
-async function getRideOffers(rideId: string): Promise<RideOffer[]> {
+async function getRideOffers(rideId: string, userId: string): Promise<RideOffer[]> {
   const ride = await Ride.findByPk(rideId);
   if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+  if (ride.riderId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
 
   return RideOffer.findAll({
     where: { rideId },
     include: [{ model: User, as: 'driver', attributes: ['id', 'fullName', 'avatarUrl'] }],
     order: [['createdAt', 'DESC']],
+    limit: 100,
   });
 }
 
 // ── Ride Lifecycle (basic status validation — full state machine in Phase 6) ─
 
 async function acceptRide(rideId: string, driverId: string): Promise<Ride> {
-  const ride = await Ride.findByPk(rideId);
-  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
-  if (ride.status !== RideStatus.Pending && ride.status !== RideStatus.Offered) {
-    throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
-  }
-  if (ride.driverId) throw appError(ErrorCodes.RIDE.RIDE_ALREADY_ACCEPTED);
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.status !== RideStatus.Pending && ride.status !== RideStatus.Offered) {
+        throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
+      }
+      if (ride.driverId) throw appError(ErrorCodes.RIDE.RIDE_ALREADY_ACCEPTED);
 
-  ride.driverId = driverId;
-  ride.status = RideStatus.Accepted;
-  await ride.save();
-  return ride;
+      ride.driverId = driverId;
+      ride.status = RideStatus.Accepted;
+      await ride.save({ transaction: t });
+      return ride;
+    },
+  );
 }
 
 async function refuseRide(rideId: string, driverId: string): Promise<void> {
   const offer = await RideOffer.findOne({ where: { rideId, driverId } });
   if (!offer) throw appError(ErrorCodes.RIDE.OFFER_NOT_FOUND);
 
-  offer.status = 'rejected' as never;
+  offer.status = OfferStatus.Rejected;
   await offer.save();
 }
 
@@ -239,6 +249,9 @@ async function completeRide(rideId: string, driverId: string): Promise<Ride> {
 async function cancelRide(rideId: string, userId: string, reason?: string): Promise<Ride> {
   const ride = await Ride.findByPk(rideId);
   if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+  if (ride.riderId !== userId && ride.driverId !== userId) {
+    throw appError(ErrorCodes.AUTH.FORBIDDEN);
+  }
   if (ride.status === RideStatus.Completed || ride.status === RideStatus.Cancelled) {
     throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
   }

@@ -2,6 +2,7 @@ import { Router } from 'express';
 
 import * as walletController from '@/controllers/walletController';
 import { protect, restrictTo } from '@/middlewares/auth';
+import { topupLimiter } from '@/middlewares/rateLimiter';
 import { validate } from '@/middlewares/validate';
 import { UserRole } from '@/types/enums';
 import {
@@ -64,12 +65,14 @@ walletRoutes.get(
 walletRoutes.post(
   '/topup/online',
   protect,
+  topupLimiter,
   validate(initiateTopupValidation),
   walletController.initiateOnlineTopup,
 );
 walletRoutes.post(
   '/topup/confirm',
   protect,
+  topupLimiter,
   validate(confirmTopupValidation),
   walletController.confirmTopup,
 );

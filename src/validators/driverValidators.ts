@@ -75,10 +75,13 @@ const nearbyQueryValidation = [
     .withMessage(`Must be one of: ${Object.values(VehicleType).join(', ')}`),
 ];
 
+const statusToggleValidation = [body('isOnline').isBoolean().withMessage('Must be a boolean')];
+
 export {
   createProfileValidation,
   nearbyQueryValidation,
   registerVehicleValidation,
+  statusToggleValidation,
   updateLocationValidation,
   updateProfileValidation,
   updateVehicleValidation,

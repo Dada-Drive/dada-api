@@ -1,6 +1,6 @@
-import { fn, literal } from 'sequelize';
+import { fn, literal, Transaction } from 'sequelize';
 
-import { DriverProfile, Rating, Ride, User } from '@/models/index';
+import { DriverProfile, Rating, Ride, sequelize, User } from '@/models/index';
 import { RideStatus } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { buildPaginationMeta, parsePaginationQuery } from '@/utils/pagination';
@@ -15,39 +15,54 @@ async function submitRating(
   score: number,
   comment?: string,
 ): Promise<Rating> {
-  const ride = await Ride.findByPk(rideId);
-  if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
-  if (ride.status !== RideStatus.Completed) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
-  if (ride.riderId !== riderId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
-  if (!ride.driverId) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
+  return sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, { transaction: t });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.status !== RideStatus.Completed) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
+      if (ride.riderId !== riderId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+      if (!ride.driverId) throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
 
-  const existing = await Rating.findOne({ where: { rideId } });
-  if (existing) throw appError(ErrorCodes.RATING.RATING_ALREADY_EXISTS);
+      const existing = await Rating.findOne({ where: { rideId }, transaction: t });
+      if (existing) throw appError(ErrorCodes.RATING.RATING_ALREADY_EXISTS);
 
-  const rating = await Rating.create({
-    rideId,
-    riderId,
-    driverId: ride.driverId,
-    score,
-    comment: comment || null,
-  });
+      const rating = await Rating.create(
+        {
+          rideId,
+          riderId,
+          driverId: ride.driverId,
+          score,
+          comment: comment || null,
+        },
+        { transaction: t },
+      );
 
-  // Update driver aggregate rating
-  const result = await Rating.findOne({
-    where: { driverId: ride.driverId },
-    attributes: [[fn('AVG', literal('score')), 'avgScore']],
-    raw: true,
-  });
+      // Update driver aggregate rating with FOR UPDATE lock
+      const driverProfile = await DriverProfile.findOne({
+        where: { userId: ride.driverId },
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
 
-  if (result) {
-    const avgScore = Number((result as unknown as { avgScore: string }).avgScore);
-    await DriverProfile.update(
-      { rating: Math.round(avgScore * 100) / 100 },
-      { where: { userId: ride.driverId } },
-    );
-  }
+      if (driverProfile) {
+        const result = await Rating.findOne({
+          where: { driverId: ride.driverId },
+          attributes: [[fn('AVG', literal('score')), 'avgScore']],
+          raw: true,
+          transaction: t,
+        });
 
-  return rating;
+        if (result) {
+          const avgScore = Number((result as unknown as { avgScore: string }).avgScore);
+          driverProfile.rating = Math.round(avgScore * 100) / 100;
+          await driverProfile.save({ transaction: t });
+        }
+      }
+
+      return rating;
+    },
+  );
 }
 
 // ── Get Ride Rating ─────────────────────────────────────────────────────────

@@ -30,6 +30,7 @@ const markPickedUp = asyncHandler(async (req: Request, res: Response): Promise<v
   const passenger = await sharedRideService.markPickedUp(
     req.params.id as string,
     req.params.passengerId as string,
+    req.user!.userId,
   );
   sendSuccess(res, passenger);
 });
@@ -38,6 +39,7 @@ const markDroppedOff = asyncHandler(async (req: Request, res: Response): Promise
   const passenger = await sharedRideService.markDroppedOff(
     req.params.id as string,
     req.params.passengerId as string,
+    req.user!.userId,
   );
   sendSuccess(res, passenger);
 });

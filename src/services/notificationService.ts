@@ -18,8 +18,8 @@ async function registerToken(
   return DeviceToken.create({ userId, token, platform });
 }
 
-async function unregisterToken(token: string): Promise<void> {
-  await DeviceToken.destroy({ where: { token } });
+async function unregisterToken(token: string, userId: string): Promise<void> {
+  await DeviceToken.destroy({ where: { token, userId } });
 }
 
 export { registerToken, unregisterToken };

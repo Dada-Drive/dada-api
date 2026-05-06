@@ -7,6 +7,7 @@ import {
   createProfileValidation,
   nearbyQueryValidation,
   registerVehicleValidation,
+  statusToggleValidation,
   updateLocationValidation,
   updateProfileValidation,
   updateVehicleValidation,
@@ -114,7 +115,12 @@ driverRoutes.patch(
 );
 
 // Status & Location
-driverRoutes.patch('/status', protect, driverController.toggleStatus);
+driverRoutes.patch(
+  '/status',
+  protect,
+  validate(statusToggleValidation),
+  driverController.toggleStatus,
+);
 driverRoutes.patch(
   '/location',
   protect,

@@ -13,7 +13,7 @@ const registerToken = asyncHandler(async (req: Request, res: Response): Promise<
 
 const unregisterToken = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { token } = req.body as { token: string };
-  await notificationService.unregisterToken(token);
+  await notificationService.unregisterToken(token, req.user!.userId);
   sendNoContent(res);
 });
 

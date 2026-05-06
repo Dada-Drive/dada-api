@@ -55,10 +55,11 @@ async function initiateOnlineTopup(userId: string, amount: number): Promise<Wall
 
 // ── Confirm Topup ───────────────────────────────────────────────────────────
 
-async function confirmTopup(transactionId: string): Promise<WalletTransaction> {
+async function confirmTopup(transactionId: string, userId: string): Promise<WalletTransaction> {
   return sequelize.transaction(async (t) => {
     const tx = await WalletTransaction.findByPk(transactionId, { transaction: t });
     if (!tx) throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Transaction not found' });
+    if (tx.walletOwnerId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
     if (tx.status !== TransactionStatus.Pending) {
       throw appError(ErrorCodes.WALLET.DUPLICATE_TRANSACTION);
     }

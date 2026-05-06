@@ -84,4 +84,14 @@ const uploadLimiter = rateLimit({
   handler: rateLimitHandler,
 });
 
-export { globalLimiter, loginLimiter, otpSendLimiter, refreshLimiter, uploadLimiter };
+// Topup: 5 per 15 minutes per IP
+const topupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  store: createRedisStore('topup'),
+  handler: rateLimitHandler,
+});
+
+export { globalLimiter, loginLimiter, otpSendLimiter, refreshLimiter, topupLimiter, uploadLimiter };

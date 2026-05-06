@@ -3,8 +3,7 @@ import { Request, Response } from 'express';
 import * as rideService from '@/services/rideService';
 import { VehicleType } from '@/types/enums';
 import { asyncHandler } from '@/utils/asyncHandler';
-import { sendCreated, sendSuccess } from '@/utils/responseHelpers';
-import { sendPaginated } from '@/utils/responseHelpers';
+import { sendCreated, sendPaginated, sendSuccess } from '@/utils/responseHelpers';
 
 // ── Fare Estimate ───────────────────────────────────────────────────────────
 
@@ -57,14 +56,14 @@ const getScheduledRides = asyncHandler(async (req: Request, res: Response): Prom
 // ── Get Ride Details ────────────────────────────────────────────────────────
 
 const getRideDetails = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const ride = await rideService.getRideDetails(req.params.id as string);
+  const ride = await rideService.getRideDetails(req.params.id as string, req.user!.userId);
   sendSuccess(res, ride);
 });
 
 // ── Get Ride Offers ─────────────────────────────────────────────────────────
 
 const getRideOffers = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const offers = await rideService.getRideOffers(req.params.id as string);
+  const offers = await rideService.getRideOffers(req.params.id as string, req.user!.userId);
   sendSuccess(res, offers);
 });
 

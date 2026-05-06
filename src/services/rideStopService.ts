@@ -13,9 +13,12 @@ interface AddStopInput {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-async function getRideOrThrow(rideId: string): Promise<Ride> {
+async function getRideOrThrow(rideId: string, userId: string): Promise<Ride> {
   const ride = await Ride.findByPk(rideId);
   if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+  if (ride.riderId !== userId && ride.driverId !== userId) {
+    throw appError(ErrorCodes.AUTH.FORBIDDEN);
+  }
   if (ride.status === RideStatus.Completed || ride.status === RideStatus.Cancelled) {
     throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
   }
@@ -24,20 +27,28 @@ async function getRideOrThrow(rideId: string): Promise<Ride> {
 
 // ── Get Stops ───────────────────────────────────────────────────────────────
 
-async function getStops(rideId: string): Promise<RideStop[]> {
+async function getStops(rideId: string, userId: string): Promise<RideStop[]> {
   const ride = await Ride.findByPk(rideId);
   if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+  if (ride.riderId !== userId && ride.driverId !== userId) {
+    throw appError(ErrorCodes.AUTH.FORBIDDEN);
+  }
 
   return RideStop.findAll({
     where: { rideId },
     order: [['orderIndex', 'ASC']],
+    limit: 100,
   });
 }
 
 // ── Add Stops ───────────────────────────────────────────────────────────────
 
-async function addStops(rideId: string, stops: AddStopInput[]): Promise<RideStop[]> {
-  await getRideOrThrow(rideId);
+async function addStops(
+  rideId: string,
+  userId: string,
+  stops: AddStopInput[],
+): Promise<RideStop[]> {
+  await getRideOrThrow(rideId, userId);
 
   const records = stops.map((s) => ({
     rideId,
@@ -52,8 +63,8 @@ async function addStops(rideId: string, stops: AddStopInput[]): Promise<RideStop
 
 // ── Mark Arrival ────────────────────────────────────────────────────────────
 
-async function markArrival(rideId: string, stopId: string): Promise<RideStop> {
-  await getRideOrThrow(rideId);
+async function markArrival(rideId: string, stopId: string, userId: string): Promise<RideStop> {
+  await getRideOrThrow(rideId, userId);
 
   const stop = await RideStop.findOne({ where: { id: stopId, rideId } });
   if (!stop) throw appError(ErrorCodes.RIDE.RIDE_STOP_NOT_FOUND);
@@ -65,8 +76,8 @@ async function markArrival(rideId: string, stopId: string): Promise<RideStop> {
 
 // ── Mark Departure ──────────────────────────────────────────────────────────
 
-async function markDeparture(rideId: string, stopId: string): Promise<RideStop> {
-  await getRideOrThrow(rideId);
+async function markDeparture(rideId: string, stopId: string, userId: string): Promise<RideStop> {
+  await getRideOrThrow(rideId, userId);
 
   const stop = await RideStop.findOne({ where: { id: stopId, rideId } });
   if (!stop) throw appError(ErrorCodes.RIDE.RIDE_STOP_NOT_FOUND);

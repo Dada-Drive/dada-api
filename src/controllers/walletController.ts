@@ -25,7 +25,7 @@ const initiateOnlineTopup = asyncHandler(async (req: Request, res: Response): Pr
 
 const confirmTopup = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { transactionId } = req.body as { transactionId: string };
-  const tx = await walletService.confirmTopup(transactionId);
+  const tx = await walletService.confirmTopup(transactionId, req.user!.userId);
   sendSuccess(res, tx);
 });
 

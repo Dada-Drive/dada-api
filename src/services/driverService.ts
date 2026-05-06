@@ -76,7 +76,20 @@ async function updateProfile(userId: string, input: UpdateProfileInput): Promise
   const profile = await DriverProfile.findOne({ where: { userId } });
   if (!profile) throw appError(ErrorCodes.DRIVER.DRIVER_NOT_FOUND);
 
-  Object.assign(profile, input);
+  const {
+    licenseNumber,
+    licenseExpiry,
+    cinPhotoFront,
+    cinPhotoBack,
+    licensePhotoFront,
+    licensePhotoBack,
+  } = input;
+  if (licenseNumber !== undefined) profile.licenseNumber = licenseNumber;
+  if (licenseExpiry !== undefined) profile.licenseExpiry = licenseExpiry;
+  if (cinPhotoFront !== undefined) profile.cinPhotoFront = cinPhotoFront;
+  if (cinPhotoBack !== undefined) profile.cinPhotoBack = cinPhotoBack;
+  if (licensePhotoFront !== undefined) profile.licensePhotoFront = licensePhotoFront;
+  if (licensePhotoBack !== undefined) profile.licensePhotoBack = licensePhotoBack;
   await profile.save();
   return profile;
 }
@@ -115,7 +128,14 @@ async function updateVehicle(userId: string, input: UpdateVehicleInput): Promise
   const vehicle = await Vehicle.findOne({ where: { driverId: profile.id } });
   if (!vehicle) throw appError(ErrorCodes.DRIVER.VEHICLE_NOT_FOUND);
 
-  Object.assign(vehicle, input);
+  const { color, vehicleType, doors, seats, photoFront, photoSide, photoBack } = input;
+  if (color !== undefined) vehicle.color = color;
+  if (vehicleType !== undefined) vehicle.vehicleType = vehicleType;
+  if (doors !== undefined) vehicle.doors = doors;
+  if (seats !== undefined) vehicle.seats = seats;
+  if (photoFront !== undefined) vehicle.photoFront = photoFront;
+  if (photoSide !== undefined) vehicle.photoSide = photoSide;
+  if (photoBack !== undefined) vehicle.photoBack = photoBack;
   await vehicle.save();
   return vehicle;
 }
