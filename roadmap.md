@@ -1081,7 +1081,7 @@ REDIS_URL
 ### Tasks
 
 #### Notifications Table
-- [ ] Create migration for `notifications` table:
+- [x] Create migration for `notifications` table:
   - `id` UUID PK
   - `user_id` UUID FK → users
   - `type` VARCHAR — notification type enum
@@ -1093,7 +1093,7 @@ REDIS_URL
   - Index on `(user_id, is_read, created_at DESC)`
 
 #### Notification Service
-- [ ] Create `src/services/notificationService.ts`:
+- [x] Create `src/services/notificationService.ts`:
   - `send(userId, { type, title, body, data })`:
     1. Insert into `notifications` table
     2. Enqueue to `notification` BullMQ queue for FCM delivery
@@ -1103,37 +1103,37 @@ REDIS_URL
   - `getUnreadCount(userId)`
 
 #### Device Token Management
-- [ ] `registerToken(userId, token, platform)` — upsert device token
-- [ ] `refreshToken(userId, oldToken, newToken)` — update on FCM token refresh
-- [ ] `unregisterToken(userId)` — delete all tokens (logout)
-- [ ] Cleanup: remove tokens that FCM reports as invalid (in notification worker)
+- [x] `registerToken(userId, token, platform)` — upsert device token
+- [x] `refreshToken(userId, oldToken, newToken)` — update on FCM token refresh
+- [x] `unregisterToken(userId)` — delete all tokens (logout)
+- [x] Cleanup: remove tokens that FCM reports as invalid (in notification worker)
 
 #### API Endpoints
-- [ ] `GET /api/v1/notifications` — paginated notification list
-- [ ] `GET /api/v1/notifications/unread-count` — unread count
-- [ ] `PATCH /api/v1/notifications/:id/read` — mark one as read
-- [ ] `POST /api/v1/notifications/read-all` — mark all as read
-- [ ] `POST /api/v1/notifications/token` — register device token
-- [ ] `DELETE /api/v1/notifications/token` — unregister token
+- [x] `GET /api/v1/notifications` — paginated notification list
+- [x] `GET /api/v1/notifications/unread-count` — unread count
+- [x] `PATCH /api/v1/notifications/:id/read` — mark one as read
+- [x] `POST /api/v1/notifications/read-all` — mark all as read
+- [x] `POST /api/v1/notifications/token` — register device token
+- [x] `DELETE /api/v1/notifications/token` — unregister token
 
 #### Notification Types (from current system)
-- [ ] `new_ride_request` — new ride available for driver
-- [ ] `ride_accepted` — driver accepted ride
-- [ ] `ride_refused` — driver refused ride
-- [ ] `driver_approaching` — driver near pickup
-- [ ] `ride_expired` — no driver accepted
-- [ ] `ride_completed` — ride finished
-- [ ] `ride_cancelled` — ride cancelled
-- [ ] `wallet_low` — balance below 5 TND threshold
-- [ ] `wallet_suspended` — wallet suspended
+- [x] `new_ride_request` — new ride available for driver
+- [x] `ride_accepted` — driver accepted ride
+- [x] `ride_refused` — driver refused ride
+- [x] `driver_approaching` — driver near pickup
+- [x] `ride_expired` — no driver accepted
+- [x] `ride_completed` — ride finished
+- [x] `ride_cancelled` — ride cancelled
+- [x] `wallet_low` — balance below 5 TND threshold
+- [x] `wallet_suspended` — wallet suspended
 
 #### Phase 10 Tests
-- [ ] `src/services/__tests__/notificationService.test.ts`:
+- [x] `src/services/__tests__/notificationService.test.ts`:
   - Send → notification persisted in DB + enqueued for FCM
   - Get paginated notifications
   - Mark as read / mark all as read
   - Unread count
-- [ ] Device token: register, refresh, unregister
+- [x] Device token: register, refresh, unregister
 
 ### Deliverables
 - `notifications` table with migration
@@ -1170,23 +1170,23 @@ REDIS_URL
 ### Tasks
 
 #### Sentry Integration
-- [ ] Install `@sentry/node`
-- [ ] Initialize in `server.ts` with:
+- [x] Install `@sentry/node`
+- [x] Initialize in `server.ts` with:
   - DSN from environment
   - Release version from `package.json`
   - Environment tag (dev/staging/prod)
   - Performance tracing: sample 10% of requests
   - User context: attach `userId` when authenticated
   - Breadcrumbs: database queries, Redis operations, external API calls
-- [ ] Sentry error handler middleware (after routes, before global error handler)
-- [ ] Report non-fatal events:
+- [x] Sentry error handler middleware (after routes, before global error handler)
+- [x] Report non-fatal events:
   - Token refresh failures
   - FCM delivery failures
   - OTP delivery failures
   - Ride state machine violations
 
 #### Health Check
-- [ ] Enhance `GET /health` → `GET /api/v1/health`:
+- [x] Enhance `GET /health` → `GET /api/v1/health`:
   ```json
   {
     "status": "healthy",
@@ -1200,26 +1200,26 @@ REDIS_URL
     }
   }
   ```
-- [ ] Return 503 if any critical dependency is unhealthy
-- [ ] Add readiness probe endpoint: `GET /api/v1/health/ready`
-- [ ] Add liveness probe endpoint: `GET /api/v1/health/live`
+- [x] Return 503 if any critical dependency is unhealthy
+- [x] Add readiness probe endpoint: `GET /api/v1/health/ready`
+- [x] Add liveness probe endpoint: `GET /api/v1/health/live`
 
 #### Structured Logging
-- [ ] All log entries include: timestamp, level, message, correlationId, userId (if authenticated), route, method, statusCode, responseTime
-- [ ] Morgan integration: log every HTTP request as structured JSON
-- [ ] Sequelize query logging: log queries > 500ms as warnings
-- [ ] Daily log rotation: 30-day retention
+- [x] All log entries include: timestamp, level, message, correlationId, userId (if authenticated), route, method, statusCode, responseTime
+- [x] Morgan integration: log every HTTP request as structured JSON
+- [x] Sequelize query logging: log queries > 500ms as warnings
+- [x] Daily log rotation: 30-day retention
 
 #### Performance Monitoring
-- [ ] Log response times per route via middleware
-- [ ] Flag routes exceeding 1s response time
-- [ ] Sequelize hooks: log queries taking > 200ms
+- [x] Log response times per route via middleware
+- [x] Flag routes exceeding 1s response time
+- [x] Sequelize hooks: log queries taking > 200ms
 
 #### Phase 11 Tests
-- [ ] `src/routes/__tests__/healthRoutes.test.ts`:
+- [x] `src/routes/__tests__/healthRoutes.test.ts`:
   - All deps healthy → 200
   - Redis down → 503 with unhealthy status
-- [ ] Slow query logging: execute slow query → warning logged with query text and duration
+- [x] Slow query logging: execute slow query → warning logged with query text and duration
 
 ### Deliverables
 - Sentry integration capturing errors + performance traces
@@ -1255,22 +1255,22 @@ REDIS_URL
 ### Tasks
 
 #### End-to-End Flow Tests
-- [ ] `src/tests/e2e/riderFlow.test.ts`:
+- [x] `src/tests/e2e/riderFlow.test.ts`:
   - Register → verify OTP → request ride → driver accepts → complete → rate → wallet updated
-- [ ] `src/tests/e2e/driverFlow.test.ts`:
+- [x] `src/tests/e2e/driverFlow.test.ts`:
   - Register → create profile → submit vehicle → go online → accept ride → complete → earning in wallet
-- [ ] `src/tests/e2e/paymentFlow.test.ts`:
+- [x] `src/tests/e2e/paymentFlow.test.ts`:
   - Initiate topup → confirm → balance updated → request ride → fare deducted
 
 #### Coverage Enforcement
-- [ ] Set thresholds in `jest.config.ts`:
+- [x] Set thresholds in `jest.config.ts`:
   ```
   services: 70%
   middlewares: 90%
   overall: 60%
   ```
-- [ ] Coverage reports: text (terminal) + lcov (CI)
-- [ ] `npm run test:coverage` enforces thresholds — fails CI if below
+- [x] Coverage reports: text (terminal) + lcov (CI)
+- [x] `npm run test:coverage` enforces thresholds — fails CI if below
 
 ### Deliverables
 - E2E test flows covering full rider, driver, and payment journeys
