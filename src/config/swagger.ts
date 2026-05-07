@@ -54,6 +54,17 @@ const options: swaggerJsdoc.Options = {
             data: { type: 'object' },
           },
         },
+        AuthUser: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            fullName: { type: 'string', example: 'Ali Ben Salem' },
+            phone: { type: 'string', example: '+21612345678' },
+            email: { type: 'string', nullable: true, example: 'ali@example.com' },
+            role: { type: 'string', enum: ['rider', 'driver', 'admin'], example: 'rider' },
+            isVerified: { type: 'boolean', example: false },
+          },
+        },
         PaginatedResponse: {
           type: 'object',
           properties: {
