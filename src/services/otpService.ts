@@ -5,11 +5,9 @@ import { Op } from 'sequelize';
 
 import { config } from '@/config/index';
 import { redisClient } from '@/config/redis';
+import { enqueueOtpDelivery } from '@/jobs/producers';
 import { OtpCode } from '@/models/index';
-import { sendSmsOtp } from '@/services/providers/easySendSmsProvider';
-import { sendWhatsAppOtp } from '@/services/providers/vonageWhatsappProvider';
 import { appError, ErrorCodes } from '@/types/errorCodes';
-import { logger } from '@/utils/logger';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -76,35 +74,15 @@ async function sendOtp(phone: string): Promise<SendOtpResult> {
   const expiresAt = new Date(Date.now() + config.otp.expiresInMinutes * 60 * 1000);
   const otpRecord = await OtpCode.create({ phone, codeHash, expiresAt });
 
-  // 6. Deliver — WhatsApp first, SMS fallback
-  let channel: 'whatsapp' | 'sms' = 'whatsapp';
+  // 6. Enqueue delivery — non-blocking (WhatsApp first, SMS fallback handled by worker)
+  void enqueueOtpDelivery({
+    otpId: otpRecord.id,
+    phone,
+    code,
+    channel: 'whatsapp',
+  });
 
-  try {
-    await sendWhatsAppOtp(phone, code);
-  } catch (whatsappErr) {
-    logger.warn('WhatsApp OTP delivery failed — falling back to SMS', {
-      phone: phone.slice(-4),
-      error: whatsappErr instanceof Error ? whatsappErr.message : String(whatsappErr),
-      component: 'otp',
-    });
-
-    try {
-      await sendSmsOtp(phone, code);
-      channel = 'sms';
-    } catch (smsErr) {
-      logger.error('Both OTP delivery channels failed', {
-        phone: phone.slice(-4),
-        whatsappError: whatsappErr instanceof Error ? whatsappErr.message : String(whatsappErr),
-        smsError: smsErr instanceof Error ? smsErr.message : String(smsErr),
-        component: 'otp',
-      });
-      throw appError(ErrorCodes.GENERAL.INTERNAL_ERROR, {
-        reason: 'Failed to deliver OTP via all channels',
-      });
-    }
-  }
-
-  return { otpId: otpRecord.id, channel, expiresAt };
+  return { otpId: otpRecord.id, channel: 'whatsapp', expiresAt };
 }
 
 // ── Verify OTP ───────────────────────────────────────────────────────────────

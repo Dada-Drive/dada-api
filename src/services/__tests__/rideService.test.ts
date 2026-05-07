@@ -17,6 +17,18 @@ import {
 } from '@/tests/setup';
 import { OfferStatus, RideStatus, TransactionType, UserRole, VehicleType } from '@/types/enums';
 
+// Mock job producers — ride expiration enqueue is now part of requestRide/pickDriver/cancelRide
+jest.mock('@/jobs/producers', () => ({
+  enqueueRideExpiration: jest.fn().mockResolvedValue(undefined),
+  enqueueScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
+  cancelRideExpiration: jest.fn().mockResolvedValue(undefined),
+  cancelScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
+  enqueueNotification: jest.fn().mockResolvedValue(undefined),
+  enqueueOtpDelivery: jest.fn().mockResolvedValue(undefined),
+  enqueuePaymentVerification: jest.fn().mockResolvedValue(undefined),
+  enqueueRatingRecalculation: jest.fn().mockResolvedValue(undefined),
+}));
+
 beforeAll(async () => {
   await setupTestDatabase();
   await setupTestRedis();

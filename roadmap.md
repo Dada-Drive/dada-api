@@ -982,71 +982,65 @@ REDIS_URL
 ### Tasks
 
 #### Queue Infrastructure
-- [ ] Install `bullmq`
-- [ ] Create `src/jobs/queues.ts` — queue definitions:
-  - `notification` — FCM push delivery
-  - `payment-verification` — Flouci webhook processing
-  - `ride-expiration` — delayed job (10min after ride creation)
-  - `scheduled-ride-activation` — delayed job (15min before scheduled time)
-  - `otp-delivery` — async SMS/WhatsApp send
-  - `rating-recalculation` — batch driver rating update
-- [ ] Create `src/jobs/workers/` directory with one worker file per queue
+- [x] Install `bullmq`, `@bull-board/express`, `@bull-board/api`, `firebase-admin`
+- [x] Create `src/jobs/connection.ts` — BullMQ Redis factory (maxRetriesPerRequest: null)
+- [x] Create `src/jobs/queues.ts` — 6 queue definitions (notification, payment-verification, ride-expiration, scheduled-ride-activation, otp-delivery, rating-recalculation)
+- [x] Create `src/jobs/producers.ts` — thin enqueue helpers with try/catch guards
+- [x] Create `src/jobs/index.ts` — init/shutdown orchestrator
+- [x] Create `src/jobs/workers/` directory with 6 worker files
+- [x] Extend `src/config/index.ts` with `jobs` and `firebase` sections
 
 #### Notification Worker
-- [ ] Create `src/jobs/workers/notificationWorker.ts`:
-  - Receive: `{ userId, type, title, body, data }`
-  - Fetch device tokens for user
-  - Send via Firebase FCM
-  - Retry: 3 attempts, exponential backoff (1s, 4s, 16s)
-  - On token delivery failure: remove invalid device token
-  - Dead letter after 3 failures → log + Sentry alert
+- [x] Create `src/jobs/workers/notificationWorker.ts`:
+  - Receive: `{ userId, title, body, data?, imageUrl? }`
+  - Fetch device tokens, send via Firebase FCM
+  - Retry: 3 attempts, exponential backoff (2s, 4s, 8s)
+  - Remove invalid tokens on registration error
 
 #### Payment Verification Worker
-- [ ] Create `src/jobs/workers/paymentVerificationWorker.ts`:
-  - Receive: `{ transactionId, paymentId, userId }`
-  - Call Flouci API to verify payment status
-  - On success: call `walletService.confirmOnlineTopUp()` (already transaction-safe from Phase 6)
-  - Retry: 5 attempts with 30s backoff
+- [x] Create `src/jobs/workers/paymentVerificationWorker.ts`:
+  - Receive: `{ transactionId, userId, flouciPaymentId }`
+  - Call Flouci verify API → confirmTopup on SUCCESS, mark Failed on failure
+  - Retry: 5 attempts, exponential backoff (5s–80s)
 
 #### Ride Expiration Worker
-- [ ] Create `src/jobs/workers/rideExpirationWorker.ts`:
-  - Delayed job: created when ride enters `pending` state, fires after 10 minutes
-  - On fire: check if ride is still `pending` or `offered` → cancel with `cancelled_by: 'system'`
-  - Emit `ride:expired` via Socket.IO
-  - Send push notification to rider
-  - Remove delayed job if ride is accepted before expiry
+- [x] Create `src/jobs/workers/rideExpirationWorker.ts`:
+  - Delayed job (5 min), idempotent status check, transaction with row lock
+  - Cancel ride, expire pending offers, emit socket events
+  - Cancelled when ride is accepted via `cancelRideExpiration()`
 
 #### Scheduled Ride Activation Worker
-- [ ] Create `src/jobs/workers/scheduledRideActivationWorker.ts`:
-  - Delayed job: created at ride scheduling time, fires 15 minutes before `scheduled_at`
-  - On fire: transition ride from scheduled → pending
-  - Notify nearby drivers via Socket.IO
-  - This REPLACES the 1-minute cron job from the old codebase
+- [x] Create `src/jobs/workers/scheduledRideActivationWorker.ts`:
+  - Delayed job (15 min before scheduledAt), notifies nearby drivers, enqueues fresh expiration
 
 #### OTP Delivery Worker
-- [ ] Create `src/jobs/workers/otpDeliveryWorker.ts`:
-  - Receive: `{ phone, code, channel }`
-  - Try WhatsApp (Vonage) → fallback to SMS (EasySendSMS)
-  - Retry: 2 attempts
-  - Dead letter: log phone number + alert
+- [x] Create `src/jobs/workers/otpDeliveryWorker.ts`:
+  - WhatsApp first → SMS fallback, retry: 2 attempts
+  - `otpService.sendOtp()` now returns immediately (non-blocking)
 
 #### Rating Recalculation Worker
-- [ ] Create `src/jobs/workers/ratingRecalculationWorker.ts`:
-  - Receive: `{ driverId }`
-  - Calculate average rating from all ratings for driver
-  - Update `driver_profiles.rating`
-  - Debounce: if multiple ratings arrive in 5s window, process once
+- [x] Create `src/jobs/workers/ratingRecalculationWorker.ts`:
+  - AVG(score) from Rating table, updates DriverProfile.rating
+  - Debounced: 5s delay deduplicates rapid ratings
 
 #### Monitoring
-- [ ] Install `@bull-board/express`
-- [ ] Mount at `/admin/queues` (protected by admin auth)
-- [ ] Disable in production (or restrict to admin IPs)
+- [x] Create `src/jobs/bullBoard.ts` — Bull Board dashboard
+- [x] Mount at `/admin/queues` (protected by admin auth, non-production only)
+
+#### Service Integration
+- [x] `rideService.requestRide()` → enqueue ride expiration + scheduled activation
+- [x] `rideService.pickDriver()` → cancel ride expiration
+- [x] `rideService.cancelRide()` → cancel ride expiration
+- [x] `otpService.sendOtp()` → enqueue OTP delivery (non-blocking)
+- [x] `ratingService.submitRating()` → enqueue rating recalculation (removed inline AVG)
 
 #### Phase 9 Tests
-- [ ] `src/jobs/__tests__/rideExpirationWorker.test.ts`: pending ride after delay → auto-cancelled
-- [ ] `src/jobs/__tests__/notificationWorker.test.ts`: FCM delivery (mocked), retry on failure, dead letter after 3 failures
-- [ ] `src/jobs/__tests__/otpDeliveryWorker.test.ts`: WhatsApp attempt → fallback to SMS
-- [ ] Mock Firebase FCM with nock
+- [x] `src/jobs/__tests__/notificationWorker.test.ts`: FCM delivery, invalid token cleanup, retry on errors
+- [x] `src/jobs/__tests__/paymentVerificationWorker.test.ts`: SUCCESS/FAILED/PENDING paths, idempotency
+- [x] `src/jobs/__tests__/rideExpirationWorker.test.ts`: auto-cancel, idempotency, offered rides
+- [x] `src/jobs/__tests__/otpDeliveryWorker.test.ts`: WhatsApp → SMS fallback, error propagation
+- [x] `src/jobs/__tests__/ratingRecalculationWorker.test.ts`: AVG calculation, idempotency
+- [x] `src/jobs/__tests__/producers.test.ts`: job payload, delay, jobId, cancel operations
 
 ### Deliverables
 - `src/jobs/` directory with queue definitions and 6 workers

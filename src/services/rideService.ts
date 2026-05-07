@@ -2,6 +2,11 @@ import { Op, QueryTypes, Transaction } from 'sequelize';
 
 import { FARE_CONFIG } from '@/config/fareConfig';
 import { config } from '@/config/index';
+import {
+  cancelRideExpiration,
+  enqueueRideExpiration,
+  enqueueScheduledRideActivation,
+} from '@/jobs/producers';
 import { Ride, RideOffer, sequelize, User, Wallet, WalletTransaction } from '@/models/index';
 import { cacheGet, cacheSet } from '@/services/cacheService';
 import {
@@ -127,6 +132,18 @@ async function requestRide(riderId: string, input: CreateRideInput): Promise<Rid
     },
     ride.vehicleType as VehicleType,
   );
+
+  // Enqueue ride expiration (fires after expiresAt)
+  void enqueueRideExpiration({ rideId: ride.id, riderId }, 5 * 60 * 1000);
+
+  // If scheduled, also enqueue activation 15 min before scheduledAt
+  if (ride.scheduledAt) {
+    const activationDelay = ride.scheduledAt.getTime() - 15 * 60 * 1000 - Date.now();
+    void enqueueScheduledRideActivation(
+      { rideId: ride.id, riderId, scheduledAt: ride.scheduledAt.toISOString() },
+      activationDelay,
+    );
+  }
 
   return ride;
 }
@@ -329,6 +346,9 @@ async function pickDriver(rideId: string, riderId: string, offerId: string): Pro
     },
   );
 
+  // Cancel the ride expiration delayed job (ride is now accepted)
+  void cancelRideExpiration(rideId);
+
   // Join ride room for both participants
   void joinRideRoom(riderId, rideId);
   void joinRideRoom(ride.driverId!, rideId);
@@ -516,6 +536,9 @@ async function cancelRide(rideId: string, userId: string, reason?: string): Prom
       return r;
     },
   );
+
+  // Cancel pending expiration job
+  void cancelRideExpiration(ride.id);
 
   emitToRideRoom(ride.id, 'ride:cancelled', {
     rideId: ride.id,

@@ -2,7 +2,7 @@ import nock from 'nock';
 
 import { OtpCode } from '@/models/index';
 import { sendOtp, verifyOtp } from '@/services/otpService';
-import { resetFactoryCounters, createTestOtp } from '@/tests/helpers/factories';
+import { createTestOtp, resetFactoryCounters } from '@/tests/helpers/factories';
 import {
   setupTestDatabase,
   setupTestRedis,
@@ -11,6 +11,11 @@ import {
   truncateAllTables,
   flushTestRedis,
 } from '@/tests/setup';
+
+// Mock job producers — OTP delivery is now async
+jest.mock('@/jobs/producers', () => ({
+  enqueueOtpDelivery: jest.fn().mockResolvedValue(undefined),
+}));
 
 beforeAll(async () => {
   await setupTestDatabase();
@@ -33,12 +38,7 @@ beforeEach(async () => {
 
 describe('otpService', () => {
   describe('sendOtp', () => {
-    it('generates, stores, and attempts delivery', async () => {
-      // Mock Vonage WhatsApp API
-      nock('https://messages-sandbox.nexmo.com')
-        .post('/v1/messages')
-        .reply(200, { message_uuid: 'test-uuid' });
-
+    it('generates, stores, and enqueues delivery', async () => {
       const result = await sendOtp('+21650001111');
 
       expect(result.otpId).toBeDefined();
@@ -53,29 +53,14 @@ describe('otpService', () => {
       expect(otp!.attempts).toBe(0);
     });
 
-    it('falls back to SMS when WhatsApp fails', async () => {
-      // Mock WhatsApp failure
-      nock('https://messages-sandbox.nexmo.com')
-        .post('/v1/messages')
-        .reply(500, 'Internal Server Error');
-
-      // Mock EasySendSMS success
-      nock('https://www.easysendsms.com')
-        .get(/sms\/bulksms-api\/bulksms-api/)
-        .reply(200, 'OK');
-
+    it('returns whatsapp channel (delivery is async via job queue)', async () => {
       const result = await sendOtp('+21650001112');
 
-      expect(result.channel).toBe('sms');
+      // Delivery is now handled by otpDeliveryWorker — sendOtp returns immediately
+      expect(result.channel).toBe('whatsapp');
     });
 
     it('invalidates previous OTPs for same phone', async () => {
-      // Mock both sends
-      nock('https://messages-sandbox.nexmo.com')
-        .post('/v1/messages')
-        .times(2)
-        .reply(200, { message_uuid: 'test' });
-
       await sendOtp('+21650001113');
       await sendOtp('+21650001113');
 

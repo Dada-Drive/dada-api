@@ -1,7 +1,7 @@
-import { fn, literal, Transaction } from 'sequelize';
+import { Transaction } from 'sequelize';
 
-import { DriverProfile, Rating, Ride, sequelize, User } from '@/models/index';
-import { cacheDel } from '@/services/cacheService';
+import { enqueueRatingRecalculation } from '@/jobs/producers';
+import { Rating, Ride, sequelize, User } from '@/models/index';
 import { RideStatus } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { buildPaginationMeta, parsePaginationQuery } from '@/utils/pagination';
@@ -39,34 +39,15 @@ async function submitRating(
         { transaction: t },
       );
 
-      // Update driver aggregate rating with FOR UPDATE lock
-      const driverProfile = await DriverProfile.findOne({
-        where: { userId: ride.driverId },
-        lock: t.LOCK.UPDATE,
-        transaction: t,
-      });
-
-      if (driverProfile) {
-        const result = await Rating.findOne({
-          where: { driverId: ride.driverId },
-          attributes: [[fn('AVG', literal('score')), 'avgScore']],
-          raw: true,
-          transaction: t,
-        });
-
-        if (result) {
-          const avgScore = Number((result as unknown as { avgScore: string }).avgScore);
-          driverProfile.rating = Math.round(avgScore * 100) / 100;
-          await driverProfile.save({ transaction: t });
-        }
-      }
-
       return { created, driverId: ride.driverId };
     },
   );
 
-  // Invalidate driver profile cache after transaction commits
-  await cacheDel(`driver:${rating.driverId}:profile`);
+  // Enqueue async rating recalculation (debounced by driverId)
+  void enqueueRatingRecalculation({
+    driverId: rating.driverId,
+    triggeredBy: 'rating_submit',
+  });
 
   return rating.created;
 }

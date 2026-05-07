@@ -69,6 +69,22 @@ const config = {
     locationDbWriteIntervalMs: 10 * 1000,
     rideSearchRadiusKm: 5,
   },
+  jobs: {
+    notification: { attempts: 3, backoff: { type: 'exponential' as const, delay: 2000 } },
+    paymentVerification: { attempts: 5, backoff: { type: 'exponential' as const, delay: 5000 } },
+    rideExpiration: { attempts: 2, backoff: { type: 'fixed' as const, delay: 3000 } },
+    scheduledRideActivation: {
+      attempts: 3,
+      backoff: { type: 'exponential' as const, delay: 5000 },
+    },
+    otpDelivery: { attempts: 2, backoff: { type: 'fixed' as const, delay: 1000 } },
+    ratingRecalculation: { attempts: 3, backoff: { type: 'exponential' as const, delay: 3000 } },
+  },
+  firebase: {
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    privateKey: process.env.FIREBASE_PRIVATE_KEY || '',
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',
+  },
   cors: {
     origins: process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || ['*'],
   },

@@ -6,6 +6,7 @@ import { app } from '@/app';
 import { config } from '@/config/index';
 import { connectRedis, disconnectRedis } from '@/config/redis';
 import { validateEnv } from '@/config/validateEnv';
+import { initializeJobSystem, shutdownJobSystem } from '@/jobs/index';
 import { initializeDatabase, sequelize } from '@/models/index';
 import { initializeSocketServer, shutdownSocketServer } from '@/sockets/socketServer';
 import { logger } from '@/utils/logger';
@@ -17,6 +18,7 @@ async function startServer(): Promise<void> {
   // Connect to database and Redis before accepting requests
   await initializeDatabase();
   await connectRedis();
+  await initializeJobSystem();
 
   const server = http.createServer(app);
   await initializeSocketServer(server);
@@ -39,7 +41,12 @@ async function startServer(): Promise<void> {
     server.close(() => {
       logger.info('HTTP server closed');
 
-      Promise.all([shutdownSocketServer(), sequelize.close(), disconnectRedis()])
+      Promise.all([
+        shutdownJobSystem(),
+        shutdownSocketServer(),
+        sequelize.close(),
+        disconnectRedis(),
+      ])
         .then(() => {
           logger.info('Database and Redis connections closed');
           logger.info('Graceful shutdown complete');

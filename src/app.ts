@@ -6,6 +6,8 @@ import swaggerUi from 'swagger-ui-express';
 
 import { config } from '@/config/index';
 import { swaggerSpec } from '@/config/swagger';
+import { setupBullBoard } from '@/jobs/bullBoard';
+import { protect, restrictTo } from '@/middlewares/auth';
 import { correlationId } from '@/middlewares/correlationId';
 import { errorHandler } from '@/middlewares/errorHandler';
 import { notFound } from '@/middlewares/notFound';
@@ -23,6 +25,7 @@ import { uploadRoutes } from '@/routes/uploadRoutes';
 import { userRoutes } from '@/routes/userRoutes';
 import { vehicleCatalogRoutes } from '@/routes/vehicleCatalogRoutes';
 import { walletRoutes } from '@/routes/walletRoutes';
+import { UserRole } from '@/types/enums';
 import { logger } from '@/utils/logger';
 
 const app = express();
@@ -90,6 +93,12 @@ app.use('/api/v1/vehicles', vehicleCatalogRoutes);
 app.use('/api/v1/meta', metaRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
 app.use('/api/v1/upload', uploadRoutes);
+
+// Bull Board — admin-only queue monitoring dashboard
+if (config.server.nodeEnv !== 'production') {
+  const bullBoardAdapter = setupBullBoard();
+  app.use('/admin/queues', protect, restrictTo(UserRole.Admin), bullBoardAdapter.getRouter());
+}
 
 // 404 handler
 app.use(notFound);
