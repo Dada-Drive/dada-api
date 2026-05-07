@@ -19,6 +19,10 @@ import {
 } from '@/tests/setup';
 import { RideStatus, UserRole } from '@/types/enums';
 
+jest.mock('@/services/notificationService', () => ({
+  send: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock job producers — rating recalculation is now async
 jest.mock('@/jobs/producers', () => ({
   enqueueRideExpiration: jest.fn().mockResolvedValue(undefined),

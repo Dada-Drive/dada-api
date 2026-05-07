@@ -13,6 +13,10 @@ import {
 } from '@/tests/setup';
 import { RideStatus, UserRole } from '@/types/enums';
 
+jest.mock('@/services/notificationService', () => ({
+  send: jest.fn().mockResolvedValue(undefined),
+}));
+
 jest.mock('@/jobs/producers', () => ({
   enqueueRideExpiration: jest.fn().mockResolvedValue(undefined),
   enqueueScheduledRideActivation: jest.fn().mockResolvedValue(undefined),

@@ -2,7 +2,8 @@ import { Op, QueryTypes, Transaction } from 'sequelize';
 
 import { FARE_CONFIG } from '@/config/fareConfig';
 import { sequelize, Wallet, WalletTransaction } from '@/models/index';
-import { TransactionStatus, TransactionType, WalletStatus } from '@/types/enums';
+import * as notificationService from '@/services/notificationService';
+import { NotificationType, TransactionStatus, TransactionType, WalletStatus } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { parseFilters, parseSorting } from '@/utils/filtering';
 import { buildPaginationMeta, parsePaginationQuery } from '@/utils/pagination';
@@ -59,38 +60,47 @@ async function initiateOnlineTopup(userId: string, amount: number): Promise<Wall
 // ── Confirm Topup ───────────────────────────────────────────────────────────
 
 async function confirmTopup(transactionId: string, userId: string): Promise<WalletTransaction> {
-  return sequelize.transaction(
+  const tx = await sequelize.transaction(
     { isolationLevel: Transaction.ISOLATION_LEVELS.SERIALIZABLE },
     async (t) => {
-      const tx = await WalletTransaction.findByPk(transactionId, {
+      const row = await WalletTransaction.findByPk(transactionId, {
         lock: t.LOCK.UPDATE,
         transaction: t,
       });
-      if (!tx) throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Transaction not found' });
-      if (tx.walletOwnerId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+      if (!row) throw appError(ErrorCodes.GENERAL.NOT_FOUND, { message: 'Transaction not found' });
+      if (row.walletOwnerId !== userId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
 
       // Idempotent: already completed → return without side effects
-      if (tx.status === TransactionStatus.Completed) return tx;
+      if (row.status === TransactionStatus.Completed) return row;
 
       // Not pending → not retriable
-      if (tx.status !== TransactionStatus.Pending) {
+      if (row.status !== TransactionStatus.Pending) {
         throw appError(ErrorCodes.WALLET.DUPLICATE_TRANSACTION);
       }
 
       // Credit wallet with application guard
       const results = await sequelize.query(
         'UPDATE wallets SET balance = balance + $1, updated_at = NOW() WHERE owner_id = $2 AND balance + $1 >= 0 RETURNING *',
-        { bind: [Number(tx.amount), tx.walletOwnerId], transaction: t, type: QueryTypes.SELECT },
+        { bind: [Number(row.amount), row.walletOwnerId], transaction: t, type: QueryTypes.SELECT },
       );
       if (results.length === 0) {
         throw appError(ErrorCodes.WALLET.INSUFFICIENT_BALANCE);
       }
 
-      tx.status = TransactionStatus.Completed;
-      await tx.save({ transaction: t });
-      return tx;
+      row.status = TransactionStatus.Completed;
+      await row.save({ transaction: t });
+      return row;
     },
   );
+
+  void notificationService.send(userId, {
+    type: NotificationType.WalletTopupConfirmed,
+    title: 'Top-up confirmed',
+    body: `${String(Number(tx.amount))} TND has been added to your wallet`,
+    data: { transactionId: tx.id },
+  });
+
+  return tx;
 }
 
 // ── Admin Manual Topup ──────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ import { logger } from '@/utils/logger';
 
 import { DeviceToken, initDeviceToken } from './DeviceToken';
 import { DriverProfile, initDriverProfile } from './DriverProfile';
+import { Notification, initNotification } from './Notification';
 import { OtpCode, initOtpCode } from './OtpCode';
 import { Rating, initRating } from './Rating';
 import { RefreshToken, initRefreshToken } from './RefreshToken';
@@ -54,6 +55,7 @@ initWalletTransaction(sequelize);
 initOtpCode(sequelize);
 initRefreshToken(sequelize);
 initDeviceToken(sequelize);
+initNotification(sequelize);
 
 // ── Associations ───────────────────────────────────────────────────────────
 // User ↔ DriverProfile (1:1)
@@ -107,6 +109,10 @@ RefreshToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(DeviceToken, { foreignKey: 'userId', as: 'deviceTokens' });
 DeviceToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// User ↔ Notification
+User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
+Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+
 // ── Database connection ────────────────────────────────────────────────────
 async function initializeDatabase(): Promise<void> {
   try {
@@ -141,4 +147,5 @@ export {
   OtpCode,
   RefreshToken,
   DeviceToken,
+  Notification,
 };

@@ -25,7 +25,7 @@ async function teardownTestDatabase(): Promise<void> {
 
 async function truncateAllTables(): Promise<void> {
   await sequelize.query(
-    'TRUNCATE TABLE users, wallets, refresh_tokens, otp_codes, driver_profiles, vehicles, rides, ride_offers, ride_stops, shared_ride_passengers, wallet_transactions, ratings, device_tokens CASCADE',
+    'TRUNCATE TABLE users, wallets, refresh_tokens, otp_codes, driver_profiles, vehicles, rides, ride_offers, ride_stops, shared_ride_passengers, wallet_transactions, ratings, device_tokens, notifications CASCADE',
   );
 }
 

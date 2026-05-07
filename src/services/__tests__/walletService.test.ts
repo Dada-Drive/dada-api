@@ -16,6 +16,10 @@ import {
 } from '@/tests/setup';
 import { TransactionStatus, TransactionType, WalletStatus } from '@/types/enums';
 
+jest.mock('@/services/notificationService', () => ({
+  send: jest.fn().mockResolvedValue(undefined),
+}));
+
 beforeAll(async () => {
   await setupTestDatabase();
   await setupTestRedis();

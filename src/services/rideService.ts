@@ -9,6 +9,7 @@ import {
 } from '@/jobs/producers';
 import { Ride, RideOffer, sequelize, User, Wallet, WalletTransaction } from '@/models/index';
 import { cacheGet, cacheSet } from '@/services/cacheService';
+import * as notificationService from '@/services/notificationService';
 import {
   emitToNearbyDrivers,
   emitToRideRoom,
@@ -17,6 +18,7 @@ import {
   leaveRideRoom,
 } from '@/sockets/emitter';
 import {
+  NotificationType,
   OfferStatus,
   RideStatus,
   TransactionStatus,
@@ -297,6 +299,13 @@ async function acceptRide(
     offeredFare: Number(result.offer.offeredFare),
   });
 
+  void notificationService.send(result.ride.riderId, {
+    type: NotificationType.RideOffer,
+    title: 'New ride offer',
+    body: `A driver offered ${String(Number(result.offer.offeredFare))} TND for your ride`,
+    data: { rideId: result.ride.id, offerId: result.offer.id },
+  });
+
   return result;
 }
 
@@ -363,10 +372,24 @@ async function pickDriver(rideId: string, riderId: string, offerId: string): Pro
     dropoffAddress: ride.dropoffAddress,
   });
 
+  void notificationService.send(ride.driverId!, {
+    type: NotificationType.RideAccepted,
+    title: 'Ride accepted',
+    body: `You have been selected for a ride to ${ride.dropoffAddress}`,
+    data: { rideId: ride.id },
+  });
+
   for (const rejected of rejectedDriverIds) {
     emitToUser(rejected.driverId, 'ride:offer_rejected', {
       rideId: ride.id,
       offerId: rejected.id,
+    });
+
+    void notificationService.send(rejected.driverId, {
+      type: NotificationType.RideOfferRejected,
+      title: 'Offer not selected',
+      body: 'The rider chose another driver for this ride',
+      data: { rideId: ride.id },
     });
   }
 
@@ -418,6 +441,13 @@ async function arriveAtPickup(rideId: string, driverId: string): Promise<Ride> {
     arrivedAt: ride.arrivedAt!.toISOString(),
   });
 
+  void notificationService.send(ride.riderId, {
+    type: NotificationType.DriverArrived,
+    title: 'Driver arrived',
+    body: 'Your driver has arrived at the pickup location',
+    data: { rideId: ride.id },
+  });
+
   return ride;
 }
 
@@ -441,6 +471,13 @@ async function startRide(rideId: string, driverId: string): Promise<Ride> {
     rideId: ride.id,
     status: ride.status,
     timestamp: ride.startedAt!.toISOString(),
+  });
+
+  void notificationService.send(ride.riderId, {
+    type: NotificationType.RideStarted,
+    title: 'Ride started',
+    body: 'Your ride is now in progress',
+    data: { rideId: ride.id },
   });
 
   return ride;
@@ -515,6 +552,19 @@ async function completeRide(rideId: string, driverId: string): Promise<Ride> {
   void leaveRideRoom(ride.riderId, ride.id);
   void leaveRideRoom(driverId, ride.id);
 
+  void notificationService.send(ride.riderId, {
+    type: NotificationType.RideCompleted,
+    title: 'Ride completed',
+    body: `Your ride has been completed. Fare: ${String(Number(ride.finalFare))} TND`,
+    data: { rideId: ride.id },
+  });
+  void notificationService.send(driverId, {
+    type: NotificationType.RideCompleted,
+    title: 'Ride completed',
+    body: `Ride completed. Earning credited to your wallet`,
+    data: { rideId: ride.id },
+  });
+
   return ride;
 }
 
@@ -547,6 +597,16 @@ async function cancelRide(rideId: string, userId: string, reason?: string): Prom
   });
   void leaveRideRoom(ride.riderId, ride.id);
   if (ride.driverId) void leaveRideRoom(ride.driverId, ride.id);
+
+  const otherPartyId = userId === ride.riderId ? ride.driverId : ride.riderId;
+  if (otherPartyId) {
+    void notificationService.send(otherPartyId, {
+      type: NotificationType.RideCancelled,
+      title: 'Ride cancelled',
+      body: ride.cancelReason ?? 'The ride has been cancelled',
+      data: { rideId: ride.id },
+    });
+  }
 
   return ride;
 }

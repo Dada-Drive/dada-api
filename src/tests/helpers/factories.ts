@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import {
   DeviceToken,
   DriverProfile,
+  Notification,
   OtpCode,
   Rating,
   RefreshToken,
@@ -16,6 +17,7 @@ import {
 import { generateRefreshToken } from '@/services/jwtService';
 import {
   DevicePlatform,
+  NotificationType,
   OfferStatus,
   RideStatus,
   TransactionStatus,
@@ -254,6 +256,31 @@ async function createTestWalletTransaction(
 
 // ── Device Token Factory ────────────────────────────────────────────────────
 
+let notificationCounter = 0;
+
+async function createTestNotification(
+  userId: string,
+  overrides: Partial<{
+    type: NotificationType;
+    title: string;
+    body: string;
+    data: Record<string, string> | null;
+    isRead: boolean;
+  }> = {},
+): Promise<Notification> {
+  notificationCounter++;
+  return Notification.create({
+    userId,
+    type: overrides.type ?? NotificationType.RideOffer,
+    title: overrides.title ?? `Test Notification ${String(notificationCounter)}`,
+    body: overrides.body ?? `Test notification body ${String(notificationCounter)}`,
+    data: overrides.data ?? null,
+    isRead: overrides.isRead ?? false,
+  });
+}
+
+// ── Device Token Factory ────────────────────────────────────────────────────
+
 let deviceCounter = 0;
 
 async function createTestDeviceToken(
@@ -274,6 +301,7 @@ function resetFactoryCounters(): void {
   userCounter = 0;
   driverCounter = 0;
   vehicleCounter = 0;
+  notificationCounter = 0;
   deviceCounter = 0;
   defaultPasswordHash = null;
 }
@@ -281,6 +309,7 @@ function resetFactoryCounters(): void {
 export {
   createTestDeviceToken,
   createTestDriverProfile,
+  createTestNotification,
   createTestOtp,
   createTestRating,
   createTestRefreshToken,

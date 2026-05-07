@@ -60,3 +60,17 @@ export enum SharedPassengerStatus {
   DroppedOff = 'dropped_off',
   Cancelled = 'cancelled',
 }
+
+export enum NotificationType {
+  NewRideRequest = 'new_ride_request',
+  RideOffer = 'ride_offer',
+  RideAccepted = 'ride_accepted',
+  RideOfferRejected = 'ride_offer_rejected',
+  DriverArrived = 'driver_arrived',
+  RideStarted = 'ride_started',
+  RideCompleted = 'ride_completed',
+  RideCancelled = 'ride_cancelled',
+  RideExpired = 'ride_expired',
+  WalletTopupConfirmed = 'wallet_topup_confirmed',
+  WalletLowBalance = 'wallet_low_balance',
+}

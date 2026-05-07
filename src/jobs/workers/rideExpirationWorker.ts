@@ -4,8 +4,9 @@ import { Transaction } from 'sequelize';
 import { config } from '@/config/index';
 import { createBullMQConnection } from '@/jobs/connection';
 import { Ride, RideOffer, sequelize } from '@/models/index';
+import * as notificationService from '@/services/notificationService';
 import { emitToRideRoom, emitToUser } from '@/sockets/emitter';
-import { OfferStatus, RideStatus } from '@/types/enums';
+import { NotificationType, OfferStatus, RideStatus } from '@/types/enums';
 import { logger } from '@/utils/logger';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -69,6 +70,13 @@ export async function processRideExpiration(job: Job<RideExpirationJobData>): Pr
     rideId,
     cancelledBy: 'system',
     cancelReason: 'Expired — no driver accepted',
+  });
+
+  void notificationService.send(riderId, {
+    type: NotificationType.RideExpired,
+    title: 'Ride expired',
+    body: 'Your ride request expired — no driver accepted in time',
+    data: { rideId },
   });
 
   logger.info('Ride expired and auto-cancelled', { rideId, riderId, component: 'jobs' });

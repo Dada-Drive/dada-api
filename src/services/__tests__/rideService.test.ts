@@ -17,6 +17,11 @@ import {
 } from '@/tests/setup';
 import { OfferStatus, RideStatus, TransactionType, UserRole, VehicleType } from '@/types/enums';
 
+// Mock notification service — not testing notification delivery here
+jest.mock('@/services/notificationService', () => ({
+  send: jest.fn().mockResolvedValue(undefined),
+}));
+
 // Mock job producers — ride expiration enqueue is now part of requestRide/pickDriver/cancelRide
 jest.mock('@/jobs/producers', () => ({
   enqueueRideExpiration: jest.fn().mockResolvedValue(undefined),

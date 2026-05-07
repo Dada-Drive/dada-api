@@ -127,6 +127,14 @@ const UPLOAD = {
   },
 } as const;
 
+const NOTIFICATION = {
+  NOTIFICATION_NOT_FOUND: {
+    code: 'NOTIFICATION_NOT_FOUND',
+    status: 404,
+    message: 'Notification not found',
+  },
+} as const;
+
 const GENERAL = {
   VALIDATION_ERROR: { code: 'VALIDATION_ERROR', status: 400, message: 'Validation failed' },
   NOT_FOUND: { code: 'NOT_FOUND', status: 404, message: 'Resource not found' },
@@ -136,7 +144,18 @@ const GENERAL = {
 
 // ── Aggregated Export ─────────────────────────────────────────────────────────
 
-const ErrorCodes = { AUTH, OTP, USER, RIDE, WALLET, DRIVER, RATING, UPLOAD, GENERAL } as const;
+const ErrorCodes = {
+  AUTH,
+  OTP,
+  USER,
+  RIDE,
+  WALLET,
+  DRIVER,
+  RATING,
+  UPLOAD,
+  NOTIFICATION,
+  GENERAL,
+} as const;
 
 // ── Union Type of All Error Code Strings ──────────────────────────────────────
 
@@ -151,6 +170,7 @@ type ErrorCode =
   | ExtractCodes<typeof DRIVER>
   | ExtractCodes<typeof RATING>
   | ExtractCodes<typeof UPLOAD>
+  | ExtractCodes<typeof NOTIFICATION>
   | ExtractCodes<typeof GENERAL>;
 
 // ── Factory Function ──────────────────────────────────────────────────────────

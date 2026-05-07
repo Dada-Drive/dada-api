@@ -5,40 +5,38 @@ import { protect } from '@/middlewares/auth';
 import { validate } from '@/middlewares/validate';
 import {
   deleteTokenValidation,
+  markAsReadValidation,
+  refreshTokenValidation,
   registerTokenValidation,
 } from '@/validators/notificationValidators';
 
 const notificationRoutes = Router();
 
-/**
- * @openapi
- * /notifications/token:
- *   post:
- *     tags: [Notifications]
- *     summary: Register device token for push notifications
- *     security: [{ bearerAuth: [] }]
- *     requestBody:
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [token, platform]
- *             properties:
- *               token: { type: string }
- *               platform: { type: string, enum: [ios, android] }
- *     responses: { 201: { description: Token registered } }
- *   delete:
- *     tags: [Notifications]
- *     summary: Unregister device token
- *     security: [{ bearerAuth: [] }]
- *     responses: { 204: { description: Token removed } }
- */
+// ── Notification Inbox ─────────────────────────────────────────────────────
+
+notificationRoutes.get('/', protect, notificationController.getNotifications);
+notificationRoutes.get('/unread-count', protect, notificationController.getUnreadCount);
+notificationRoutes.post('/read-all', protect, notificationController.markAllAsRead);
+notificationRoutes.patch(
+  '/:id/read',
+  protect,
+  validate(markAsReadValidation),
+  notificationController.markAsRead,
+);
+
+// ── Device Tokens ──────────────────────────────────────────────────────────
 
 notificationRoutes.post(
   '/token',
   protect,
   validate(registerTokenValidation),
   notificationController.registerToken,
+);
+notificationRoutes.put(
+  '/token',
+  protect,
+  validate(refreshTokenValidation),
+  notificationController.refreshDeviceToken,
 );
 notificationRoutes.delete(
   '/token',
