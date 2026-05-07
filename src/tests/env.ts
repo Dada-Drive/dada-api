@@ -11,3 +11,4 @@ process.env.REFRESH_TOKEN_EXPIRES_IN = '30d';
 process.env.PORT = '3001';
 process.env.ALLOWED_ORIGINS = 'http://localhost:3001';
 process.env.LOG_LEVEL = 'error';
+process.env.SENTRY_DSN = '';

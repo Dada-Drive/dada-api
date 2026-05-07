@@ -91,6 +91,16 @@ const config = {
   logging: {
     level: process.env.LOG_LEVEL || 'info',
   },
+  sentry: {
+    dsn: process.env.SENTRY_DSN || '',
+    environment: process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development',
+    tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE) || 0.1,
+  },
+  performance: {
+    slowQueryWarnMs: Number(process.env.SLOW_QUERY_WARN_MS) || 200,
+    slowQueryErrorMs: Number(process.env.SLOW_QUERY_ERROR_MS) || 500,
+    slowRouteMs: Number(process.env.SLOW_ROUTE_MS) || 1000,
+  },
 } as const;
 
 export { config };

@@ -1,71 +1,70 @@
 import { Router, Request, Response } from 'express';
 
-import { pingRedis } from '@/config/redis';
-import { sequelize } from '@/models/index';
+import { getHealthStatus } from '@/services/healthService';
+import { asyncHandler } from '@/utils/asyncHandler';
 
 const router = Router();
 
 /**
  * @openapi
- * /health:
+ * /api/v1/health:
  *   get:
  *     tags:
  *       - Health
- *     summary: Health check
- *     description: Returns the current health status of the service including database and Redis connectivity.
+ *     summary: Full health check
+ *     description: Returns health status of all dependencies (database, Redis, Firebase). Returns 503 if any critical dependency is unhealthy.
  *     responses:
  *       200:
- *         description: Service is healthy or degraded
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   enum: [ok, degraded]
- *                   example: ok
- *                 timestamp:
- *                   type: string
- *                   format: date-time
- *                   example: '2026-05-06T12:00:00.000Z'
- *                 uptime:
- *                   type: number
- *                   description: Server uptime in seconds
- *                   example: 86400
- *                 services:
- *                   type: object
- *                   properties:
- *                     database:
- *                       type: string
- *                       enum: [ok, error]
- *                     redis:
- *                       type: string
- *                       enum: [ok, error]
+ *         description: All dependencies healthy
+ *       503:
+ *         description: One or more dependencies unhealthy
  */
-async function checkDatabase(): Promise<boolean> {
-  try {
-    await sequelize.authenticate();
-    return true;
-  } catch {
-    return false;
-  }
-}
+router.get(
+  '/',
+  asyncHandler(async (_req: Request, res: Response): Promise<void> => {
+    const result = await getHealthStatus();
+    const statusCode = result.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json(result);
+  }),
+);
 
-router.get('/health', async (_req: Request, res: Response) => {
-  const [dbOk, redisOk] = await Promise.all([checkDatabase(), pingRedis()]);
+/**
+ * @openapi
+ * /api/v1/health/ready:
+ *   get:
+ *     tags:
+ *       - Health
+ *     summary: Readiness probe
+ *     description: Returns 200 when the service is ready to accept traffic (all dependencies up). Returns 503 otherwise.
+ *     responses:
+ *       200:
+ *         description: Service is ready
+ *       503:
+ *         description: Service is not ready
+ */
+router.get(
+  '/ready',
+  asyncHandler(async (_req: Request, res: Response): Promise<void> => {
+    const result = await getHealthStatus();
+    const statusCode = result.status === 'healthy' ? 200 : 503;
+    res.status(statusCode).json({ status: result.status === 'healthy' ? 'ready' : 'not_ready' });
+  }),
+);
 
-  const status = dbOk && redisOk ? 'ok' : 'degraded';
-
-  res.status(200).json({
-    status,
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    services: {
-      database: dbOk ? 'ok' : 'error',
-      redis: redisOk ? 'ok' : 'error',
-    },
-  });
+/**
+ * @openapi
+ * /api/v1/health/live:
+ *   get:
+ *     tags:
+ *       - Health
+ *     summary: Liveness probe
+ *     description: Always returns 200 if the process is running. No dependency checks.
+ *     responses:
+ *       200:
+ *         description: Process is alive
+ */
+router.get('/live', (_req: Request, res: Response) => {
+  res.status(200).json({ status: 'alive' });
 });
 
 export { router as healthRoutes };

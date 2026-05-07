@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/node';
 import { Request, Response, NextFunction } from 'express';
 
 import { User } from '@/models/index';
@@ -37,6 +38,7 @@ async function protect(req: Request, _res: Response, next: NextFunction): Promis
     }
 
     req.user = { userId: payload.userId, role: userData.role };
+    Sentry.setUser({ id: req.user.userId });
     next();
     return;
   }
@@ -58,6 +60,7 @@ async function protect(req: Request, _res: Response, next: NextFunction): Promis
   await cacheUser(payload.userId, JSON.stringify({ isActive: user.isActive, role: user.role }));
 
   req.user = { userId: user.id, role: user.role };
+  Sentry.setUser({ id: req.user.userId });
   next();
 }
 

@@ -20,6 +20,7 @@ const requirements: EnvRequirement[] = [
   // JWT — required once auth is implemented (Phase 4+)
   { key: 'JWT_SECRET', required: true, envs: ['staging', 'production'] },
   { key: 'REFRESH_TOKEN_SECRET', required: true, envs: ['staging', 'production'] },
+  { key: 'SENTRY_DSN', required: true, envs: ['staging', 'production'] },
 ];
 
 function validateEnv(): void {

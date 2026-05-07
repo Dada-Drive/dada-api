@@ -2,6 +2,7 @@ import { Job, Worker } from 'bullmq';
 
 import { getMessaging } from '@/config/firebase';
 import { config } from '@/config/index';
+import { captureNonFatal } from '@/config/sentry';
 import { createBullMQConnection } from '@/jobs/connection';
 import { DeviceToken } from '@/models/index';
 import { logger } from '@/utils/logger';
@@ -54,6 +55,7 @@ export async function processNotification(job: Job<NotificationJobData>): Promis
           error: err instanceof Error ? err.message : String(err),
           component: 'jobs',
         });
+        captureNonFatal(err, { userId, tokenId: deviceToken.id, type: 'fcm_delivery_failure' });
         throw err;
       }
     }

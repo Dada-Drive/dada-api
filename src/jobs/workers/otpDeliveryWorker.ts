@@ -1,6 +1,7 @@
 import { Job, Worker } from 'bullmq';
 
 import { config } from '@/config/index';
+import { captureNonFatal } from '@/config/sentry';
 import { createBullMQConnection } from '@/jobs/connection';
 import { sendSmsOtp } from '@/services/providers/easySendSmsProvider';
 import { sendWhatsAppOtp } from '@/services/providers/vonageWhatsappProvider';
@@ -25,13 +26,14 @@ export async function processOtpDelivery(job: Job<OtpDeliveryJobData>): Promise<
       await sendWhatsAppOtp(phone, code);
       logger.info('OTP delivered via WhatsApp', { otpId, phone, component: 'jobs' });
       return;
-    } catch (err) {
+    } catch (err: unknown) {
       logger.warn('WhatsApp OTP delivery failed — falling back to SMS', {
         otpId,
         phone,
         error: err instanceof Error ? err.message : String(err),
         component: 'jobs',
       });
+      captureNonFatal(err, { otpId, phone, type: 'otp_whatsapp_failure' });
       // Fall through to SMS
     }
   }

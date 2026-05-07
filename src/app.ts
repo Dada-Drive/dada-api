@@ -1,5 +1,6 @@
+import * as Sentry from '@sentry/node';
 import cors from 'cors';
-import express from 'express';
+import express, { Request } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
@@ -11,6 +12,7 @@ import { protect, restrictTo } from '@/middlewares/auth';
 import { correlationId } from '@/middlewares/correlationId';
 import { errorHandler } from '@/middlewares/errorHandler';
 import { notFound } from '@/middlewares/notFound';
+import { responseTime } from '@/middlewares/responseTime';
 import { adminRoutes } from '@/routes/adminRoutes';
 import { authRoutes } from '@/routes/authRoutes';
 import { driverRoutes } from '@/routes/driverRoutes';
@@ -47,6 +49,9 @@ app.use(
 // Correlation ID — must be before morgan so request ID is available for logging
 app.use(correlationId);
 
+// Response time monitoring — flags slow routes
+app.use(responseTime);
+
 // HTTP request logging via Morgan piped through Winston
 const morganStream = {
   write: (message: string): void => {
@@ -55,9 +60,20 @@ const morganStream = {
 };
 
 app.use(
-  morgan(':method :url :status :res[content-length] - :response-time ms', {
-    stream: morganStream,
-  }),
+  morgan(
+    (tokens, req, res) => {
+      return JSON.stringify({
+        method: tokens.method?.(req, res),
+        url: tokens.url?.(req, res),
+        status: Number(tokens.status?.(req, res)),
+        contentLength: tokens.res?.(req, res, 'content-length'),
+        responseTime: `${tokens['response-time']?.(req, res) ?? '0'}ms`,
+        correlationId: (req as Request).requestId,
+        userId: (req as Request).user?.userId,
+      });
+    },
+    { stream: morganStream },
+  ),
 );
 
 // Body parsers
@@ -79,7 +95,7 @@ app.use('/api/v1', (_req, res, next) => {
 });
 
 // Routes
-app.use(healthRoutes);
+app.use('/api/v1/health', healthRoutes);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/driver', driverRoutes);
@@ -102,6 +118,11 @@ if (config.server.nodeEnv !== 'production') {
 
 // 404 handler
 app.use(notFound);
+
+// Sentry error handler — captures errors before our handler sends the response
+if (config.sentry.dsn) {
+  Sentry.setupExpressErrorHandler(app);
+}
 
 // Global error handler
 app.use(errorHandler);

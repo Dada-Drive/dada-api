@@ -2,9 +2,12 @@ import 'dotenv/config';
 
 import http from 'http';
 
+import * as Sentry from '@sentry/node';
+
 import { app } from '@/app';
 import { config } from '@/config/index';
 import { connectRedis, disconnectRedis } from '@/config/redis';
+import { initSentry } from '@/config/sentry';
 import { validateEnv } from '@/config/validateEnv';
 import { initializeJobSystem, shutdownJobSystem } from '@/jobs/index';
 import { initializeDatabase, sequelize } from '@/models/index';
@@ -13,6 +16,9 @@ import { logger } from '@/utils/logger';
 
 // Validate environment variables before anything else
 validateEnv();
+
+// Initialize Sentry early so it can patch http/pg/ioredis modules
+initSentry();
 
 async function startServer(): Promise<void> {
   // Connect to database and Redis before accepting requests
@@ -74,13 +80,15 @@ async function startServer(): Promise<void> {
 // Unhandled rejections — log and exit
 process.on('unhandledRejection', (reason: unknown) => {
   logger.error('Unhandled Rejection', { reason });
-  process.exit(1);
+  Sentry.captureException(reason);
+  void Sentry.flush(2000).finally(() => process.exit(1));
 });
 
 // Uncaught exceptions — log and exit
 process.on('uncaughtException', (error: Error) => {
   logger.error('Uncaught Exception', { message: error.message, stack: error.stack });
-  process.exit(1);
+  Sentry.captureException(error);
+  void Sentry.flush(2000).finally(() => process.exit(1));
 });
 
 startServer().catch((error: unknown) => {

@@ -22,11 +22,20 @@ const dialectOptions: Options['dialectOptions'] = config.db.ssl
   ? { ssl: { rejectUnauthorized: true } }
   : {};
 
+function queryLogger(sql: string, timing?: number): void {
+  const duration = timing ?? 0;
+  if (duration >= config.performance.slowQueryErrorMs) {
+    logger.error('Slow query detected', { sql, duration, component: 'sequelize' });
+  } else if (duration >= config.performance.slowQueryWarnMs) {
+    logger.warn('Slow query detected', { sql, duration, component: 'sequelize' });
+  } else {
+    logger.debug(sql, { duration, component: 'sequelize' });
+  }
+}
+
 const sequelize = new Sequelize(config.db.url, {
   dialect: 'postgres',
-  logging: (sql: string, timing?: number): void => {
-    logger.debug(sql, { duration: timing, component: 'sequelize' });
-  },
+  logging: queryLogger,
   benchmark: true,
   pool: {
     min: config.db.poolMin,
@@ -132,6 +141,7 @@ async function initializeDatabase(): Promise<void> {
 }
 
 export {
+  queryLogger,
   sequelize,
   initializeDatabase,
   User,

@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 
+import { captureNonFatal } from '@/config/sentry';
 import { RefreshToken, sequelize, User, Wallet } from '@/models/index';
 import { verifyGoogleToken } from '@/services/googleAuthService';
 import {
@@ -127,6 +128,10 @@ async function refreshToken(token: string): Promise<TokenPair> {
   });
 
   if (!storedToken) {
+    captureNonFatal(new Error('Token refresh failed — stored token not found'), {
+      userId: payload.userId,
+      type: 'token_refresh_failure',
+    });
     throw appError(ErrorCodes.AUTH.TOKEN_INVALID);
   }
 
