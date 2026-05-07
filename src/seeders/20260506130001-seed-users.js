@@ -1,7 +1,7 @@
 'use strict';
 
 // Pre-computed bcrypt hash of "Password123" (12 rounds)
-const PASSWORD_HASH = '$2b$12$LJ3m4ys3Lgx/vkNOB0iSAOdFvRMJSHoEyDABOwIgEB1fRkPZweU/u';
+const PASSWORD_HASH = '$2b$12$619ugYdcwsVkrI7K.P6hJ.oyzLI6dnB/bBwArrT/3tk.p7F.tD2cS';
 
 // Deterministic UUIDs for cross-seeder references
 const USERS = {
@@ -27,7 +27,7 @@ module.exports = {
         id: USERS.admin,
         full_name: 'Admin DADA',
         email: 'admin@dada.tn',
-        phone: '+21612345678',
+        phone: '+21622345678',
         password_hash: PASSWORD_HASH,
         role: 'admin',
         avatar_url: null,
