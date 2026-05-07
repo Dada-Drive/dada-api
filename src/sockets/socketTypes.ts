@@ -1,0 +1,141 @@
+import type { UserRole } from '@/types/enums';
+
+// ── Socket Data ─────────────────────────────────────────────────────────────
+
+interface SocketUser {
+  userId: string;
+  role: UserRole;
+}
+
+interface SocketData {
+  user: SocketUser;
+  tokenExp: number;
+  tokenJti: string;
+}
+
+// ── Ack Response ────────────────────────────────────────────────────────────
+
+interface AckResponse {
+  success: boolean;
+  error?: string;
+}
+
+// ── Client → Server Events ──────────────────────────────────────────────────
+
+interface LocationUpdatePayload {
+  lat: number;
+  lng: number;
+}
+
+interface DriverStatusPayload {
+  isOnline: boolean;
+}
+
+interface ClientToServerEvents {
+  'location:update': (payload: LocationUpdatePayload, ack: (res: AckResponse) => void) => void;
+  'driver:status': (payload: DriverStatusPayload, ack: (res: AckResponse) => void) => void;
+}
+
+// ── Server → Client Events ──────────────────────────────────────────────────
+
+interface RideRequestPayload {
+  rideId: string;
+  pickupLat: number;
+  pickupLng: number;
+  pickupAddress: string;
+  dropoffAddress: string;
+  vehicleType: string;
+  calculatedFare: number;
+  riderName: string;
+}
+
+interface RideOfferPayload {
+  rideId: string;
+  offerId: string;
+  driverId: string;
+  driverName: string;
+  driverRating: number;
+  vehicleType: string;
+  offeredFare: number;
+}
+
+interface RideAcceptedPayload {
+  rideId: string;
+  riderId: string;
+  riderName: string;
+  pickupLat: number;
+  pickupLng: number;
+  pickupAddress: string;
+  dropoffAddress: string;
+}
+
+interface OfferRejectedPayload {
+  rideId: string;
+  offerId: string;
+}
+
+interface RideStatusPayload {
+  rideId: string;
+  status: string;
+  timestamp: string;
+}
+
+interface DriverArrivedPayload {
+  rideId: string;
+  arrivedAt: string;
+}
+
+interface DriverLocationPayload {
+  driverId: string;
+  lat: number;
+  lng: number;
+  timestamp: string;
+}
+
+interface RideCompletedPayload {
+  rideId: string;
+  status: string;
+  completedAt: string;
+}
+
+interface RideCancelledPayload {
+  rideId: string;
+  cancelledBy: string;
+  cancelReason: string | null;
+}
+
+interface ServerToClientEvents {
+  'ride:new_request': (payload: RideRequestPayload) => void;
+  'ride:new_offer': (payload: RideOfferPayload) => void;
+  'ride:accepted': (payload: RideAcceptedPayload) => void;
+  'ride:offer_rejected': (payload: OfferRejectedPayload) => void;
+  'ride:status_changed': (payload: RideStatusPayload) => void;
+  'ride:driver_arrived': (payload: DriverArrivedPayload) => void;
+  'ride:driver_location': (payload: DriverLocationPayload) => void;
+  'ride:completed': (payload: RideCompletedPayload) => void;
+  'ride:cancelled': (payload: RideCancelledPayload) => void;
+}
+
+// ── Inter-Server Events (Redis adapter) ─────────────────────────────────────
+
+type InterServerEvents = Record<string, never>;
+
+export type {
+  AckResponse,
+  ClientToServerEvents,
+  DriverArrivedPayload,
+  DriverLocationPayload,
+  DriverStatusPayload,
+  InterServerEvents,
+  LocationUpdatePayload,
+  OfferRejectedPayload,
+  RideAcceptedPayload,
+  RideCancelledPayload,
+  RideCompletedPayload,
+  RideOfferPayload,
+  RideRequestPayload,
+  RideStatusPayload,
+  ServerToClientEvents,
+  SocketData,
+  SocketUser,
+};

@@ -7,6 +7,7 @@ import { config } from '@/config/index';
 import { connectRedis, disconnectRedis } from '@/config/redis';
 import { validateEnv } from '@/config/validateEnv';
 import { initializeDatabase, sequelize } from '@/models/index';
+import { initializeSocketServer, shutdownSocketServer } from '@/sockets/socketServer';
 import { logger } from '@/utils/logger';
 
 // Validate environment variables before anything else
@@ -18,6 +19,7 @@ async function startServer(): Promise<void> {
   await connectRedis();
 
   const server = http.createServer(app);
+  await initializeSocketServer(server);
   const PORT = config.server.port;
 
   server.listen(PORT, () => {
@@ -37,7 +39,7 @@ async function startServer(): Promise<void> {
     server.close(() => {
       logger.info('HTTP server closed');
 
-      Promise.all([sequelize.close(), disconnectRedis()])
+      Promise.all([shutdownSocketServer(), sequelize.close(), disconnectRedis()])
         .then(() => {
           logger.info('Database and Redis connections closed');
           logger.info('Graceful shutdown complete');

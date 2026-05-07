@@ -922,62 +922,28 @@ REDIS_URL
 ### Tasks
 
 #### Socket.IO Setup
-- [ ] Install `socket.io`, `@socket.io/redis-adapter`
-- [ ] Create `src/sockets/socketServer.ts`:
-  - Attach to HTTP server
-  - Configure Redis adapter for multi-instance pub/sub
-  - CORS configuration matching Express
-  - Connection logging
-- [ ] Create `src/sockets/socketAuth.ts`:
-  - JWT verification on connection (`socket.handshake.auth.token`)
-  - Reject invalid/expired/blacklisted tokens
-  - Attach user data to socket: `socket.data.user = { userId, role }`
+- [x] Install `socket.io`, `@socket.io/redis-adapter`, `socket.io-client` (dev) — added `socketTypes.ts` with typed event maps, `createRedisClient()` factory in `redis.ts`, `socket` config section in `config/index.ts`
+- [x] Create `src/sockets/socketServer.ts` — attaches to HTTP server, configures Redis adapter with dedicated pub/sub clients, registers auth + handler per namespace, starts periodic token expiry checker, exports `getIO()` singleton + `shutdownSocketServer()`
+- [x] Create `src/sockets/socketAuth.ts` — `createSocketAuthMiddleware(allowedRoles)` mirrors HTTP auth exactly (verifyAccessToken → isBlacklisted → getCachedUser/DB → role gate → attach socket.data → auto-join personal room → auto-rejoin active ride room), `startTokenExpiryCheck()` disconnects expired/blacklisted sockets every 5 min
 
 #### Namespaces & Rooms
-- [ ] Create `src/sockets/namespaces/riderNamespace.ts` (`/riders`):
-  - On connect: join `rider:{userId}` room
-  - Listen: `ride:request_status` — subscribe to ride updates
-  - Listen: `ride:cancel` — rider cancels via socket
-- [ ] Create `src/sockets/namespaces/driverNamespace.ts` (`/drivers`):
-  - On connect: join `driver:{userId}` room
-  - Listen: `location:update` — driver pushes GPS coordinates (replaces HTTP polling)
-    - Validate coordinates (lat/lng bounds, accuracy)
-    - Update Redis GeoSet
-    - Update `driver_profiles.last_lat/last_lng` (debounced, every 10s to DB)
-    - Broadcast to ride room if in active ride
-  - Listen: `driver:status` — online/offline toggle
+- [x] Create `src/sockets/handlers/riderHandlers.ts` (`/riders`) — on connect: join `rider:{userId}` room, log connection/disconnection. Riders only receive events, no client→server events
+- [x] Create `src/sockets/handlers/driverHandlers.ts` (`/drivers`) — handles `location:update` (validate coords, update Redis geo immediately, debounce DB writes to 10s, broadcast to ride room if active ride) and `driver:status` (delegates to `driverService.toggleOnlineStatus`), with ack-based responses
 
 #### Ride Room Events
-- [ ] Create `src/sockets/handlers/rideEvents.ts`:
-  - When ride created: emit `ride:new` to nearby drivers (via Redis GeoSet lookup)
-  - When offer made: emit `ride:offer` to rider's room
-  - When driver accepted: emit `ride:accepted` to ride room
-  - When status changes: emit `ride:status_changed` to ride room
-  - When driver location updates during active ride: emit `ride:driver_location` to rider in ride room
-  - When driver approaching (< 200m): emit `ride:driver_approaching` to rider
-  - When ride completed: emit `ride:completed` to ride room
-  - When ride cancelled: emit `ride:cancelled` to ride room
-
-#### Integration with Services
-- [ ] Create `src/sockets/emitter.ts` — centralized emit helper:
-  - `emitToUser(userId, event, data)` — emit to user's personal room
-  - `emitToRideRoom(rideId, event, data)` — emit to ride room
-  - `emitToNearbyDrivers(lat, lng, radiusKm, event, data)` — broadcast to drivers in radius
-  - Services call emitter after database mutations (AFTER transaction commit)
-- [ ] Ensure socket emissions happen OUTSIDE database transactions (never inside `BEGIN/COMMIT`)
+- [x] Create `src/sockets/emitter.ts` — `emitToUser()`, `emitToRideRoom()`, `emitToNearbyDrivers()`, `joinRideRoom()`, `leaveRideRoom()`. All emit to both `/riders` and `/drivers` namespaces. Tracks active rides via `active_ride:{userId}` Redis key (24h TTL safety net). Gracefully degrades when Socket.IO not initialized
+- [x] Integrated emitter into `rideService.ts` — 9 events across 7 lifecycle methods: `ride:new_request` (requestRide → nearby drivers), `ride:new_offer` (acceptRide → rider), `ride:accepted` + `ride:offer_rejected` (pickDriver → driver + rejected), `ride:driver_arrived` (arriveAtPickup → rider), `ride:status_changed` (startRide → room), `ride:completed` (completeRide → room + leave), `ride:cancelled` (cancelRide → room + leave)
+- [x] All socket emissions happen OUTSIDE database transactions (after commit)
+- [x] `ride:driver_location` emitted from driverHandlers.ts location:update handler to /riders namespace ride room
 
 #### Fallback
-- [ ] HTTP polling endpoints remain available for clients that haven't migrated to sockets
-- [ ] Socket.IO `transports: ['websocket', 'polling']` — fallback to HTTP long-polling if WebSocket fails
+- [x] HTTP polling endpoints remain available — no HTTP routes were removed or changed
+- [x] Socket.IO configured with `transports: ['websocket', 'polling']` — automatic fallback
 
-#### Phase 8 Tests
-- [ ] `src/sockets/__tests__/socketAuth.test.ts`:
-  - Valid JWT → connection accepted
-  - Invalid/expired JWT → connection rejected
-- [ ] `src/sockets/__tests__/rideEvents.test.ts`:
-  - Ride status change → both rider and driver receive event
-  - Driver location update → rider in same ride room receives it
-- [ ] Use `socket.io-client` for test connections
+#### Phase 8 Tests (22 tests)
+- [x] `src/sockets/__tests__/socketAuth.test.ts` (10 tests) — valid rider/driver connect, no token/malformed/blacklisted-jti/blacklisted-user/inactive reject, rider→/drivers rejected, driver→/riders rejected, auto-rejoin ride room
+- [x] `src/sockets/__tests__/socketEvents.test.ts` (6 tests) — emitToUser rider/driver receive, emitToRideRoom both receive, non-participant excluded, emitToNearbyDrivers geo-targeted, joinRideRoom/leaveRideRoom Redis key lifecycle
+- [x] `src/sockets/__tests__/locationUpdate.test.ts` (6 tests) — lat/lng validation, ack success, Redis geo update verified, ride room broadcast to rider, no broadcast without active ride
 
 ### Deliverables
 - `src/sockets/` directory with server setup, auth, namespaces, and event handlers

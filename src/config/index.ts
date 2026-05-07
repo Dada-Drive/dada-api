@@ -61,6 +61,14 @@ const config = {
     perMin: { economy: 0.3, premium: 0.5, van: 0.4 },
     currency: 'TND',
   },
+  socket: {
+    transports: ['websocket', 'polling'] as const,
+    pingInterval: 25000,
+    pingTimeout: 20000,
+    tokenCheckIntervalMs: 5 * 60 * 1000,
+    locationDbWriteIntervalMs: 10 * 1000,
+    rideSearchRadiusKm: 5,
+  },
   cors: {
     origins: process.env.ALLOWED_ORIGINS?.split(',').map((o) => o.trim()) || ['*'],
   },

@@ -73,4 +73,17 @@ async function pingRedis(): Promise<boolean> {
   }
 }
 
-export { connectRedis, disconnectRedis, pingRedis, redisClient };
+// ── Factory for additional Redis clients ────────────────────────────────────
+
+function createRedisClient(): Redis {
+  return new Redis(config.redis.url, {
+    maxRetriesPerRequest: 3,
+    retryStrategy(times: number): number | null {
+      if (times > 10) return null;
+      return Math.min(times * 200, 5000);
+    },
+    lazyConnect: true,
+  });
+}
+
+export { connectRedis, createRedisClient, disconnectRedis, pingRedis, redisClient };
