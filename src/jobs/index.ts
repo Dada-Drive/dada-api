@@ -16,7 +16,9 @@ const allWorkers: { close: () => Promise<void> }[] = [];
 
 async function initializeJobSystem(): Promise<void> {
   const connection = getSharedConnection();
-  await connection.connect();
+  if (connection.status !== 'ready' && connection.status !== 'connecting') {
+    await connection.connect();
+  }
 
   allWorkers.push(
     createNotificationWorker(),

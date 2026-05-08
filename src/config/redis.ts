@@ -42,6 +42,9 @@ redisClient.on('close', () => {
 
 async function connectRedis(): Promise<void> {
   try {
+    if (redisClient.status === 'ready' || redisClient.status === 'connecting') {
+      return;
+    }
     await redisClient.connect();
   } catch (err) {
     logger.error('Redis: failed to connect', {
