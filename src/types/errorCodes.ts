@@ -30,6 +30,7 @@ const AUTH = {
   ACCOUNT_NOT_FOUND: { code: 'ACCOUNT_NOT_FOUND', status: 404, message: 'Account not found' },
   UNAUTHORIZED: { code: 'UNAUTHORIZED', status: 401, message: 'Authentication required' },
   FORBIDDEN: { code: 'FORBIDDEN', status: 403, message: 'Insufficient permissions' },
+  PHONE_REQUIRED: { code: 'PHONE_REQUIRED', status: 400, message: 'Phone number required' },
 } as const;
 
 const OTP = {

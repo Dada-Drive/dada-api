@@ -36,7 +36,8 @@ const config = {
     whatsappFrom: process.env.VONAGE_WHATSAPP_FROM || '',
   },
   easySendSms: {
-    apiKey: process.env.EASYSENDSMS_API_KEY || '',
+    username: process.env.EASYSENDSMS_USERNAME || '',
+    password: process.env.EASYSENDSMS_PASSWORD || '',
     sender: process.env.OTP_SENDER || '',
   },
   upload: {

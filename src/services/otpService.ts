@@ -8,6 +8,7 @@ import { redisClient } from '@/config/redis';
 import { enqueueOtpDelivery } from '@/jobs/producers';
 import { OtpCode } from '@/models/index';
 import { appError, ErrorCodes } from '@/types/errorCodes';
+import { logger } from '@/utils/logger';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -74,7 +75,12 @@ async function sendOtp(phone: string): Promise<SendOtpResult> {
   const expiresAt = new Date(Date.now() + config.otp.expiresInMinutes * 60 * 1000);
   const otpRecord = await OtpCode.create({ phone, codeHash, expiresAt });
 
-  // 6. Enqueue delivery — non-blocking (WhatsApp first, SMS fallback handled by worker)
+  // 6. Log OTP in development for easy testing
+  if (config.server.nodeEnv === 'development') {
+    logger.warn(`[DEV] OTP code for ${phone}: ${code}`, { component: 'otp' });
+  }
+
+  // 7. Enqueue delivery — non-blocking (WhatsApp first, SMS fallback handled by worker)
   void enqueueOtpDelivery({
     otpId: otpRecord.id,
     phone,
