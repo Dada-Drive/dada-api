@@ -87,6 +87,11 @@ async function setRole(userId: string, role: UserRole): Promise<UserProfileRespo
   const user = await User.findByPk(userId);
   if (!user) throw appError(ErrorCodes.USER.USER_NOT_FOUND);
 
+  // Only pending users can select their initial role
+  if (user.role !== UserRole.Pending) {
+    throw appError(ErrorCodes.AUTH.FORBIDDEN);
+  }
+
   user.role = role;
   await user.save({ fields: ['role'] });
   await invalidateUserCache(userId);

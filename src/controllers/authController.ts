@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 
 import * as authService from '@/services/authService';
-import { sendOtp, verifyOtp } from '@/services/otpService';
+import { sendOtp } from '@/services/otpService';
 import { asyncHandler } from '@/utils/asyncHandler';
 import { sendCreated, sendNoContent, sendSuccess } from '@/utils/responseHelpers';
 
@@ -85,8 +85,8 @@ const sendOtpHandler = asyncHandler(async (req: Request, res: Response): Promise
 const verifyOtpHandler = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   const { phone, code } = req.body as { phone: string; code: string };
 
-  await verifyOtp(phone, code);
-  sendSuccess(res, { verified: true });
+  const result = await authService.verifyOtpAndAuthenticate(phone, code);
+  sendSuccess(res, result);
 });
 
 // ── Google Auth ──────────────────────────────────────────────────────────────

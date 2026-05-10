@@ -15,7 +15,7 @@ const updateProfileValidation = [
 const updatePhoneValidation = [phoneField('phone')];
 
 const setRoleValidation = [
-  body('role').isIn(['pending']).withMessage('Can only switch to pending (driver application)'),
+  body('role').isIn(['rider', 'driver']).withMessage('Role must be rider or driver'),
 ];
 
 export { setRoleValidation, updatePhoneValidation, updateProfileValidation };

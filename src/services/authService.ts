@@ -236,6 +236,45 @@ async function resetPasswordWithOtp(
   await invalidateUserCache(user.id);
 }
 
+// ── Verify OTP & Authenticate ───────────────────────────────────────────────
+
+async function verifyOtpAndAuthenticate(phone: string, code: string): Promise<AuthResult> {
+  // 1. Verify OTP (throws on invalid/expired/max attempts)
+  await verifyOtp(phone, code);
+
+  // 2. Find or create user atomically
+  const user = await sequelize.transaction(async (t) => {
+    const existing = await User.findOne({ where: { phone }, transaction: t });
+
+    if (existing) {
+      if (!existing.isActive) {
+        throw appError(ErrorCodes.AUTH.ACCOUNT_SUSPENDED);
+      }
+      return existing;
+    }
+
+    // New user — create with wallet
+    const created = await User.create(
+      {
+        fullName: '',
+        phone,
+        isVerified: true,
+        role: UserRole.Pending,
+      },
+      { transaction: t },
+    );
+
+    await Wallet.create({ ownerId: created.id }, { transaction: t });
+
+    return created;
+  });
+
+  const tokens = generateTokenPair(user.id, user.role);
+  await storeRefreshToken(user.id, tokens.refreshToken);
+
+  return { user: formatUserResponse(user), ...tokens };
+}
+
 // ── Google Auth ──────────────────────────────────────────────────────────────
 
 async function googleAuth(idToken: string, phone?: string): Promise<AuthResult> {
@@ -272,22 +311,20 @@ async function googleAuth(idToken: string, phone?: string): Promise<AuthResult> 
 
   // 3. New user — phone is required
   if (!phone) {
-    throw appError(ErrorCodes.GENERAL.VALIDATION_ERROR, {
-      reason: 'Phone number is required for new Google sign-up',
-    });
+    throw appError(ErrorCodes.AUTH.PHONE_REQUIRED);
   }
 
-  // Create user + wallet atomically
+  // Create user + wallet atomically (name empty + role pending to force onboarding)
   const newUser = await sequelize.transaction(async (t) => {
     const created = await User.create(
       {
-        fullName: googleUser.fullName,
+        fullName: '',
         phone,
         email: googleUser.email,
         googleId: googleUser.googleId,
         avatarUrl: googleUser.avatarUrl,
         isVerified: true,
-        role: UserRole.Rider,
+        role: UserRole.Pending,
       },
       { transaction: t },
     );
@@ -325,5 +362,6 @@ export {
   refreshToken,
   register,
   resetPasswordWithOtp,
+  verifyOtpAndAuthenticate,
 };
 export type { AuthResult, RegisterInput };

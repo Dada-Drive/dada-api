@@ -49,7 +49,7 @@ const userRoutes = Router();
  * /users/me/role:
  *   patch:
  *     tags: [Users]
- *     summary: Apply for driver role
+ *     summary: Set user role
  *     security: [{ bearerAuth: [] }]
  *     requestBody:
  *       content:
@@ -58,7 +58,7 @@ const userRoutes = Router();
  *             type: object
  *             required: [role]
  *             properties:
- *               role: { type: string, enum: [pending] }
+ *               role: { type: string, enum: [rider, driver] }
  *     responses:
  *       200:
  *         description: Role updated
