@@ -1,3 +1,5 @@
+import path from 'path';
+
 import * as Sentry from '@sentry/node';
 import cors from 'cors';
 import express, { Request } from 'express';
@@ -79,6 +81,9 @@ app.use(
 // Body parsers
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Swagger UI — development and staging only
 if (config.server.nodeEnv !== 'production') {

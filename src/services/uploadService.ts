@@ -60,10 +60,22 @@ async function uploadImage(file: Express.Multer.File, folder: string): Promise<U
 
 async function uploadImages(files: Express.Multer.File[], folder: string): Promise<UploadResult[]> {
   const results: UploadResult[] = [];
-  for (const file of files) {
-    results.push(await uploadImage(file, folder));
+  try {
+    for (const file of files) {
+      results.push(await uploadImage(file, folder));
+    }
+    return results;
+  } catch (error) {
+    // Clean up already-uploaded files on partial failure
+    for (const result of results) {
+      try {
+        await deleteImage(result.key);
+      } catch {
+        // Best-effort cleanup — do not mask the original error
+      }
+    }
+    throw error;
   }
-  return results;
 }
 
 async function deleteImage(key: string): Promise<void> {
