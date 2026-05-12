@@ -25,8 +25,10 @@ function createSocketAuthMiddleware(
 ): (socket: AppSocket, next: (err?: Error) => void) => Promise<void> {
   return async (socket: AppSocket, next: (err?: Error) => void): Promise<void> => {
     try {
-      // 1. Extract token
-      const raw = socket.handshake.auth.token as string | undefined;
+      // 1. Extract token (auth object preferred, query fallback for Socket.IO-Client-Swift)
+      const raw = (socket.handshake.auth.token ?? socket.handshake.query.token) as
+        | string
+        | undefined;
       if (!raw) {
         next(new Error('Authentication required'));
         return;

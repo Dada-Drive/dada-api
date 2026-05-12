@@ -17,6 +17,7 @@ interface DriverMeta {
   vehicleType: string;
   rating: string;
   fullName: string;
+  heading: string;
 }
 
 interface NearbyDriver {
@@ -27,6 +28,7 @@ interface NearbyDriver {
   vehicleType: string;
   rating: number;
   fullName: string;
+  heading: number | null;
 }
 
 // ── Update Driver Location ──────────────────────────────────────────────────
@@ -35,7 +37,7 @@ async function updateDriverLocation(
   driverId: string,
   lat: number,
   lng: number,
-  meta: { vehicleType: VehicleType; rating: number | null; fullName: string },
+  meta: { vehicleType: VehicleType; rating: number | null; fullName: string; heading?: number },
 ): Promise<void> {
   try {
     const metaKey = `${META_PREFIX}${driverId}${META_SUFFIX}`;
@@ -46,6 +48,7 @@ async function updateDriverLocation(
       vehicleType: meta.vehicleType,
       rating: String(meta.rating ?? '0'),
       fullName: meta.fullName,
+      heading: String(meta.heading ?? ''),
     });
     pipeline.expire(metaKey, META_TTL);
 
@@ -139,6 +142,7 @@ async function getNearbyDrivers(
         vehicleType: meta.vehicleType,
         rating: parseFloat(meta.rating) || 0,
         fullName: meta.fullName,
+        heading: meta.heading ? parseFloat(meta.heading) : null,
       });
     }
 

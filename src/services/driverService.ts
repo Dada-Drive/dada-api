@@ -281,6 +281,7 @@ async function getNearbyDrivers(query: NearbyQuery): Promise<NearbyDriver[]> {
       vehicleType: vehicle?.vehicleType ?? 'economy',
       rating: p.rating != null ? Number(p.rating) : 0,
       fullName: user?.fullName ?? '',
+      heading: null,
     };
   });
 }

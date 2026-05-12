@@ -25,6 +25,13 @@ interface AckResponse {
 interface LocationUpdatePayload {
   lat: number;
   lng: number;
+  heading?: number;
+}
+
+interface NearbySubscribePayload {
+  lat: number;
+  lng: number;
+  radiusKm: number;
 }
 
 interface DriverStatusPayload {
@@ -34,6 +41,8 @@ interface DriverStatusPayload {
 interface ClientToServerEvents {
   'location:update': (payload: LocationUpdatePayload, ack: (res: AckResponse) => void) => void;
   'driver:status': (payload: DriverStatusPayload, ack: (res: AckResponse) => void) => void;
+  'nearby:subscribe': (payload: NearbySubscribePayload, ack: (res: AckResponse) => void) => void;
+  'nearby:unsubscribe': (payload: Record<string, never>, ack: (res: AckResponse) => void) => void;
 }
 
 // ── Server → Client Events ──────────────────────────────────────────────────
@@ -104,6 +113,16 @@ interface RideCancelledPayload {
   cancelReason: string | null;
 }
 
+interface NearbyDriversPayload {
+  drivers: Array<{
+    id: string;
+    lat: number;
+    lng: number;
+    vehicleType: string;
+    heading: number | null;
+  }>;
+}
+
 interface ServerToClientEvents {
   'ride:new_request': (payload: RideRequestPayload) => void;
   'ride:new_offer': (payload: RideOfferPayload) => void;
@@ -114,6 +133,7 @@ interface ServerToClientEvents {
   'ride:driver_location': (payload: DriverLocationPayload) => void;
   'ride:completed': (payload: RideCompletedPayload) => void;
   'ride:cancelled': (payload: RideCancelledPayload) => void;
+  'nearby:drivers': (payload: NearbyDriversPayload) => void;
 }
 
 // ── Inter-Server Events (Redis adapter) ─────────────────────────────────────
@@ -128,6 +148,8 @@ export type {
   DriverStatusPayload,
   InterServerEvents,
   LocationUpdatePayload,
+  NearbyDriversPayload,
+  NearbySubscribePayload,
   OfferRejectedPayload,
   RideAcceptedPayload,
   RideCancelledPayload,

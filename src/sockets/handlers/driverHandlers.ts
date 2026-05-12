@@ -6,6 +6,7 @@ import * as redisGeo from '@/services/redisGeoService';
 import { ACTIVE_RIDE_PREFIX } from '@/sockets/socketAuth';
 import { VehicleType } from '@/types/enums';
 import { logger } from '@/utils/logger';
+import { isValidCoordinates } from '@/utils/validation';
 
 import type {
   ClientToServerEvents,
@@ -27,21 +28,6 @@ type AppNamespace = Namespace<
 
 const lastDbWrite = new Map<string, number>();
 
-// ── Coordinate Validation ───────────────────────────────────────────────────
-
-function isValidCoordinates(lat: number, lng: number): boolean {
-  return (
-    typeof lat === 'number' &&
-    typeof lng === 'number' &&
-    !Number.isNaN(lat) &&
-    !Number.isNaN(lng) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lng >= -180 &&
-    lng <= 180
-  );
-}
-
 // ── Driver Namespace Handlers ───────────────────────────────────────────────
 
 function registerDriverHandlers(namespace: AppNamespace): void {
@@ -58,7 +44,7 @@ function registerDriverHandlers(namespace: AppNamespace): void {
 
     socket.on('location:update', async (payload: LocationUpdatePayload, ack) => {
       try {
-        const { lat, lng } = payload;
+        const { lat, lng, heading } = payload;
 
         if (!isValidCoordinates(lat, lng)) {
           ack({ success: false, error: 'Invalid coordinates' });
@@ -74,6 +60,7 @@ function registerDriverHandlers(namespace: AppNamespace): void {
           vehicleType: (meta.vehicleType as VehicleType) || VehicleType.Economy,
           rating: meta.rating ? parseFloat(meta.rating) : null,
           fullName: meta.fullName || '',
+          heading,
         });
 
         // Debounced DB write
