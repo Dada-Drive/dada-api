@@ -98,12 +98,15 @@ interface DriverLocationPayload {
   driverId: string;
   lat: number;
   lng: number;
+  heading?: number;
   timestamp: string;
 }
 
 interface RideCompletedPayload {
   rideId: string;
   status: string;
+  finalFare: number;
+  commissionAmount?: number;
   completedAt: string;
 }
 

@@ -7,6 +7,9 @@ import {
   Sequelize,
 } from 'sequelize';
 
+import type { User } from './User';
+import type { Vehicle } from './Vehicle';
+
 class DriverProfile extends Model<
   InferAttributes<DriverProfile>,
   InferCreationAttributes<DriverProfile>
@@ -31,6 +34,9 @@ class DriverProfile extends Model<
   declare deletedAt: CreationOptional<Date | null>;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
+
+  declare user?: User;
+  declare vehicle?: Vehicle;
 }
 
 function initDriverProfile(sequelize: Sequelize): typeof DriverProfile {

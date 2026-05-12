@@ -7,7 +7,16 @@ import {
   enqueueRideExpiration,
   enqueueScheduledRideActivation,
 } from '@/jobs/producers';
-import { Ride, RideOffer, sequelize, User, Wallet, WalletTransaction } from '@/models/index';
+import {
+  DriverProfile,
+  Ride,
+  RideOffer,
+  sequelize,
+  User,
+  Vehicle,
+  Wallet,
+  WalletTransaction,
+} from '@/models/index';
 import { cacheGet, cacheSet } from '@/services/cacheService';
 import * as notificationService from '@/services/notificationService';
 import {
@@ -289,13 +298,27 @@ async function acceptRide(
     },
   );
 
+  // Fetch driver profile for offer payload
+  const driverProfile = await DriverProfile.findOne({
+    where: { userId: driverId },
+    include: [
+      { model: User, as: 'user', attributes: ['fullName'] },
+      { model: Vehicle, as: 'vehicle', attributes: ['make', 'model', 'plateNumber', 'color'] },
+    ],
+  });
+
+  const driverName = driverProfile?.user?.fullName ?? '';
+  const driverRating = driverProfile?.rating ? Number(driverProfile.rating) : 0;
+  const vehicle = driverProfile?.vehicle;
+  const vehicleInfo = vehicle ? `${vehicle.make} ${vehicle.model} — ${vehicle.plateNumber}` : '';
+
   emitToUser(result.ride.riderId, 'ride:new_offer', {
     rideId: result.ride.id,
     offerId: result.offer.id,
     driverId,
-    driverName: '',
-    driverRating: 0,
-    vehicleType: result.ride.vehicleType,
+    driverName,
+    driverRating,
+    vehicleType: vehicleInfo || result.ride.vehicleType,
     offeredFare: Number(result.offer.offeredFare),
   });
 
@@ -544,9 +567,17 @@ async function completeRide(rideId: string, driverId: string): Promise<Ride> {
     },
   );
 
-  emitToRideRoom(ride.id, 'ride:completed', {
+  emitToUser(ride.riderId, 'ride:completed', {
     rideId: ride.id,
     status: ride.status,
+    finalFare: Number(ride.finalFare),
+    completedAt: ride.completedAt!.toISOString(),
+  });
+  emitToUser(driverId, 'ride:completed', {
+    rideId: ride.id,
+    status: ride.status,
+    finalFare: Number(ride.finalFare),
+    commissionAmount: Number(ride.commissionAmount),
     completedAt: ride.completedAt!.toISOString(),
   });
   void leaveRideRoom(ride.riderId, ride.id);

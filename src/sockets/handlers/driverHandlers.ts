@@ -82,6 +82,7 @@ function registerDriverHandlers(namespace: AppNamespace): void {
             driverId: userId,
             lat,
             lng,
+            heading,
             timestamp: new Date().toISOString(),
           });
         }
