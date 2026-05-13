@@ -124,6 +124,27 @@ function registerDriverHandlers(namespace: AppNamespace): void {
         reason,
         component: 'socket',
       });
+
+      // Remove driver from geo index so riders stop seeing them
+      redisGeo.removeDriver(userId).catch((err) => {
+        logger.warn('Failed to remove driver from geo on disconnect', {
+          userId,
+          error: err instanceof Error ? err.message : String(err),
+          component: 'socket',
+        });
+      });
+
+      // Mark offline in DB (fire-and-forget)
+      DriverProfile.update(
+        { isOnline: false, lastSeenAt: new Date() },
+        { where: { userId } },
+      ).catch((err) => {
+        logger.warn('Failed to mark driver offline on disconnect', {
+          userId,
+          error: err instanceof Error ? err.message : String(err),
+          component: 'socket',
+        });
+      });
     });
   });
 }
