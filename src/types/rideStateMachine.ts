@@ -4,7 +4,7 @@ import { ErrorCodes, appError } from '@/types/errorCodes';
 
 const VALID_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
   [RideStatus.Pending]: [RideStatus.Offered, RideStatus.Cancelled],
-  [RideStatus.Offered]: [RideStatus.Accepted, RideStatus.Cancelled],
+  [RideStatus.Offered]: [RideStatus.Pending, RideStatus.Accepted, RideStatus.Cancelled],
   [RideStatus.Accepted]: [RideStatus.InProgress, RideStatus.Cancelled],
   [RideStatus.InProgress]: [RideStatus.Completed, RideStatus.Cancelled],
   [RideStatus.Completed]: [],

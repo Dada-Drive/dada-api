@@ -58,6 +58,7 @@ function registerDriverHandlers(namespace: AppNamespace): void {
         // Update Redis geo index immediately
         await redisGeo.updateDriverLocation(userId, lat, lng, {
           vehicleType: (meta.vehicleType as VehicleType) || VehicleType.Economy,
+          serviceTypes: meta.serviceTypes || '',
           rating: meta.rating ? parseFloat(meta.rating) : null,
           fullName: meta.fullName || '',
           heading,

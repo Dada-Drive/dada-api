@@ -57,10 +57,37 @@ const config = {
     appSecret: process.env.FLOUCI_APP_SECRET || '',
   },
   fare: {
-    baseFare: { economy: 2.5, premium: 5.0, van: 4.0 },
-    perKm: { economy: 1.2, premium: 2.0, van: 1.6 },
-    perMin: { economy: 0.3, premium: 0.5, van: 0.4 },
+    serviceTypes: {
+      taxi: {
+        economy: { baseFare: 2.5, perKm: 1.2, perMin: 0.3 },
+        premium: { baseFare: 5.0, perKm: 2.0, perMin: 0.5 },
+        van: { baseFare: 4.0, perKm: 1.6, perMin: 0.4 },
+        motorcycle: { baseFare: 2.0, perKm: 1.0, perMin: 0.25 },
+      },
+      covoiturage: {
+        economy: { baseFare: 2.0, perKm: 1.0, perMin: 0.25 },
+        premium: { baseFare: 3.5, perKm: 1.5, perMin: 0.35 },
+        van: { baseFare: 3.0, perKm: 1.3, perMin: 0.3 },
+        motorcycle: { baseFare: 1.5, perKm: 0.8, perMin: 0.2 },
+      },
+      cours_partage: {
+        economy: { baseFare: 1.5, perKm: 0.8, perMin: 0.2 },
+        premium: { baseFare: 2.5, perKm: 1.2, perMin: 0.3 },
+        van: { baseFare: 2.0, perKm: 1.0, perMin: 0.25 },
+        motorcycle: { baseFare: 1.2, perKm: 0.7, perMin: 0.15 },
+      },
+      vespa: {
+        economy: { baseFare: 1.5, perKm: 0.9, perMin: 0.2 },
+        premium: { baseFare: 1.5, perKm: 0.9, perMin: 0.2 },
+        van: { baseFare: 1.5, perKm: 0.9, perMin: 0.2 },
+        motorcycle: { baseFare: 1.5, perKm: 0.9, perMin: 0.2 },
+      },
+    },
     currency: 'TND',
+    offerValiditySeconds: 30,
+    offerCooldownSeconds: 30,
+    offerFareToleranceTnd: 1,
+    offerMaxFareMultiplier: 5,
   },
   socket: {
     transports: ['websocket', 'polling'] as const,
@@ -80,6 +107,7 @@ const config = {
     },
     otpDelivery: { attempts: 2, backoff: { type: 'fixed' as const, delay: 1000 } },
     ratingRecalculation: { attempts: 3, backoff: { type: 'exponential' as const, delay: 3000 } },
+    offerExpiration: { attempts: 2, backoff: { type: 'fixed' as const, delay: 3000 } },
   },
   firebase: {
     projectId: process.env.FIREBASE_PROJECT_ID || '',

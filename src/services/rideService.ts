@@ -3,12 +3,15 @@ import { Op, QueryTypes, Transaction } from 'sequelize';
 import { FARE_CONFIG } from '@/config/fareConfig';
 import { config } from '@/config/index';
 import {
+  cancelOfferExpiration,
   cancelRideExpiration,
+  enqueueOfferExpiration,
   enqueueRideExpiration,
   enqueueScheduledRideActivation,
 } from '@/jobs/producers';
 import {
   DriverProfile,
+  DriverServiceType,
   Ride,
   RideOffer,
   sequelize,
@@ -30,6 +33,7 @@ import {
   NotificationType,
   OfferStatus,
   RideStatus,
+  ServiceType,
   TransactionStatus,
   TransactionType,
   VehicleType,
@@ -46,12 +50,15 @@ import type { PaginationMeta } from '@/types/pagination';
 
 interface FareEstimateInput {
   vehicleType: VehicleType;
+  serviceType?: ServiceType;
   distanceKm: number;
   estimatedMinutes: number;
 }
 
 interface CreateRideInput {
   vehicleType: VehicleType;
+  serviceType?: ServiceType;
+  hideEstimate?: boolean;
   pickupLat: number;
   pickupLng: number;
   pickupAddress: string;
@@ -74,20 +81,29 @@ const FARE_CACHE_TTL = 3600; // 1 hour
 async function calculateFare(
   input: FareEstimateInput,
 ): Promise<{ fare: number; currency: string }> {
+  const svcType = input.serviceType ?? ServiceType.Taxi;
+  const vehType = input.vehicleType;
+
   // Bucketed cache key: round distance to nearest 0.5km, minutes to nearest 1min
   const distBucket = Math.round(input.distanceKm * 2) / 2;
   const minBucket = Math.round(input.estimatedMinutes);
-  const cacheKey = `fare:${input.vehicleType}:${String(distBucket)}:${String(minBucket)}`;
+  const cacheKey = `fare:${svcType}:${vehType}:${String(distBucket)}:${String(minBucket)}`;
 
   const cached = await cacheGet<{ fare: number; currency: string }>(cacheKey);
   if (cached) return cached;
 
   const { fare: fareConfig } = config;
-  const type = input.vehicleType;
+  const serviceRates = fareConfig.serviceTypes[svcType as keyof typeof fareConfig.serviceTypes];
+  if (!serviceRates) {
+    throw appError(ErrorCodes.GENERAL.VALIDATION_ERROR, {
+      message: `No fare rates for service type: ${svcType}`,
+    });
+  }
+  const rates = serviceRates[vehType as keyof typeof serviceRates];
 
-  const baseFare = fareConfig.baseFare[type];
-  const distanceCost = input.distanceKm * fareConfig.perKm[type];
-  const timeCost = input.estimatedMinutes * fareConfig.perMin[type];
+  const baseFare = rates.baseFare;
+  const distanceCost = input.distanceKm * rates.perKm;
+  const timeCost = input.estimatedMinutes * rates.perMin;
   const raw = Math.round((baseFare + distanceCost + timeCost) * 100) / 100;
   const fare = Math.max(raw, FARE_CONFIG.MIN_FARE);
   const result = { fare, currency: fareConfig.currency };
@@ -99,8 +115,15 @@ async function calculateFare(
 // ── Request Ride ────────────────────────────────────────────────────────────
 
 async function requestRide(riderId: string, input: CreateRideInput): Promise<Ride> {
+  const serviceType = input.serviceType ?? ServiceType.Taxi;
+
+  if (serviceType === ServiceType.Services) {
+    throw appError(ErrorCodes.RIDE.SERVICE_NOT_IMPLEMENTED);
+  }
+
   const { fare } = await calculateFare({
     vehicleType: input.vehicleType,
+    serviceType,
     distanceKm: input.distanceKm,
     estimatedMinutes: input.estimatedMinutes,
   });
@@ -108,6 +131,8 @@ async function requestRide(riderId: string, input: CreateRideInput): Promise<Rid
   const ride = await Ride.create({
     riderId,
     vehicleType: input.vehicleType,
+    serviceType,
+    hideEstimate: input.hideEstimate ?? false,
     pickupLat: input.pickupLat,
     pickupLng: input.pickupLng,
     pickupAddress: input.pickupAddress,
@@ -138,10 +163,11 @@ async function requestRide(riderId: string, input: CreateRideInput): Promise<Rid
       pickupAddress: ride.pickupAddress,
       dropoffAddress: ride.dropoffAddress,
       vehicleType: ride.vehicleType,
+      serviceType: ride.serviceType,
       calculatedFare: Number(ride.calculatedFare),
       riderName: input.passengerName ?? '',
     },
-    ride.vehicleType as VehicleType,
+    serviceType,
   );
 
   // Enqueue ride expiration (fires after expiresAt)
@@ -266,7 +292,39 @@ async function getRideOffers(rideId: string, userId: string): Promise<RideOffer[
 async function acceptRide(
   rideId: string,
   driverId: string,
+  offeredFare?: number,
 ): Promise<{ ride: Ride; offer: RideOffer }> {
+  // Validate driver is registered for this ride's service type (pre-txn read)
+  const rideForCheck = await Ride.findByPk(rideId);
+  if (!rideForCheck) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+
+  const driverHasServiceType = await DriverServiceType.findOne({
+    where: { driverId, serviceType: rideForCheck.serviceType },
+  });
+  if (!driverHasServiceType) throw appError(ErrorCodes.RIDE.SERVICE_TYPE_MISMATCH);
+
+  // Check cooldown (prevents rapid re-offers after expiry/refusal)
+  const cooldownKey = `cooldown:${driverId}:${rideId}`;
+  const cooldownActive = await cacheGet<string>(cooldownKey);
+  if (cooldownActive) throw appError(ErrorCodes.RIDE.OFFER_COOLDOWN_ACTIVE);
+
+  // Determine fare: use provided offeredFare or default to calculatedFare
+  const fareToOffer = offeredFare ?? Number(rideForCheck.calculatedFare);
+
+  // Fare clamping validation
+  const calculatedFare = Number(rideForCheck.calculatedFare);
+  if (rideForCheck.hideEstimate) {
+    // Open pricing: any positive fare, capped at 5x system estimate
+    if (fareToOffer <= 0 || fareToOffer > calculatedFare * config.fare.offerMaxFareMultiplier) {
+      throw appError(ErrorCodes.RIDE.OFFER_FARE_OUT_OF_RANGE);
+    }
+  } else {
+    // Fixed pricing: within ± tolerance of calculated fare
+    if (Math.abs(fareToOffer - calculatedFare) > config.fare.offerFareToleranceTnd) {
+      throw appError(ErrorCodes.RIDE.OFFER_FARE_OUT_OF_RANGE);
+    }
+  }
+
   const result = await sequelize.transaction(
     { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
     async (t) => {
@@ -277,14 +335,17 @@ async function acceptRide(
         throw appError(ErrorCodes.RIDE.RIDE_INVALID_STATUS);
       }
 
+      // Partial unique index: only one pending offer per driver per ride
       const existing = await RideOffer.findOne({
-        where: { rideId, driverId },
+        where: { rideId, driverId, status: OfferStatus.Pending },
         transaction: t,
       });
       if (existing) throw appError(ErrorCodes.RIDE.RIDE_ALREADY_ACCEPTED);
 
+      const expiresAt = new Date(Date.now() + config.fare.offerValiditySeconds * 1000);
+
       const offer = await RideOffer.create(
-        { rideId, driverId, offeredFare: Number(ride.calculatedFare) },
+        { rideId, driverId, offeredFare: fareToOffer, expiresAt },
         { transaction: t },
       );
 
@@ -310,7 +371,7 @@ async function acceptRide(
   const driverName = driverProfile?.user?.fullName ?? '';
   const driverRating = driverProfile?.rating ? Number(driverProfile.rating) : 0;
   const vehicle = driverProfile?.vehicle;
-  const vehicleInfo = vehicle ? `${vehicle.make} ${vehicle.model} — ${vehicle.plateNumber}` : '';
+  const vehicleInfo = vehicle ? `${vehicle.make} ${vehicle.model}` : '';
 
   emitToUser(result.ride.riderId, 'ride:new_offer', {
     rideId: result.ride.id,
@@ -319,7 +380,9 @@ async function acceptRide(
     driverName,
     driverRating,
     vehicleType: vehicleInfo || result.ride.vehicleType,
+    plateNumber: vehicle?.plateNumber ?? '',
     offeredFare: Number(result.offer.offeredFare),
+    expiresAt: result.offer.expiresAt?.toISOString(),
   });
 
   void notificationService.send(result.ride.riderId, {
@@ -328,6 +391,17 @@ async function acceptRide(
     body: `A driver offered ${String(Number(result.offer.offeredFare))} TND for your ride`,
     data: { rideId: result.ride.id, offerId: result.offer.id },
   });
+
+  // Enqueue offer expiration (fires after offerValiditySeconds)
+  void enqueueOfferExpiration(
+    {
+      offerId: result.offer.id,
+      rideId: result.ride.id,
+      driverId,
+      riderId: result.ride.riderId,
+    },
+    config.fare.offerValiditySeconds * 1000,
+  );
 
   return result;
 }
@@ -380,6 +454,12 @@ async function pickDriver(rideId: string, riderId: string, offerId: string): Pro
 
   // Cancel the ride expiration delayed job (ride is now accepted)
   void cancelRideExpiration(rideId);
+
+  // Cancel offer expiration for the accepted offer + all rejected offers
+  void cancelOfferExpiration(offerId);
+  for (const rejected of rejectedDriverIds) {
+    void cancelOfferExpiration(rejected.id);
+  }
 
   // Join ride room for both participants
   void joinRideRoom(riderId, rideId);
@@ -441,7 +521,88 @@ async function refuseRide(rideId: string, driverId: string): Promise<void> {
     },
   );
 
+  // Set cooldown to prevent immediate re-offer
+  const cooldownKey = `cooldown:${driverId}:${rideId}`;
+  await cacheSet(cooldownKey, '1', config.fare.offerCooldownSeconds);
+
+  // Cancel the offer expiration job (offer is already rejected)
+  void cancelOfferExpiration(offerId);
+
   emitToUser(riderId, 'ride:offer_rejected', { rideId, offerId });
+}
+
+// ── Rider Refuse Offer ────────────────────────────────────────────────────
+
+async function riderRefuseOffer(rideId: string, riderId: string, offerId: string): Promise<void> {
+  let rideReverted = false;
+
+  const result = await sequelize.transaction(
+    { isolationLevel: Transaction.ISOLATION_LEVELS.READ_COMMITTED },
+    async (t) => {
+      const ride = await Ride.findByPk(rideId, {
+        attributes: ['riderId', 'status'],
+        transaction: t,
+      });
+      if (!ride) throw appError(ErrorCodes.RIDE.RIDE_NOT_FOUND);
+      if (ride.riderId !== riderId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
+
+      const offer = await RideOffer.findOne({
+        where: { id: offerId, rideId, status: OfferStatus.Pending },
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+      if (!offer) throw appError(ErrorCodes.RIDE.OFFER_NOT_FOUND);
+
+      offer.status = OfferStatus.Rejected;
+      await offer.save({ transaction: t });
+
+      // Check if this was the last pending offer
+      const remainingPending = await RideOffer.count({
+        where: { rideId, status: OfferStatus.Pending },
+        transaction: t,
+      });
+
+      if (remainingPending === 0 && ride.status === RideStatus.Offered) {
+        const r = await Ride.findByPk(rideId, { lock: t.LOCK.UPDATE, transaction: t });
+        if (r) {
+          validateTransition(r.status, RideStatus.Pending);
+          r.status = RideStatus.Pending;
+          await r.save({ transaction: t });
+          rideReverted = true;
+        }
+      }
+
+      return { driverId: offer.driverId };
+    },
+  );
+
+  const { driverId } = result;
+
+  // Set cooldown on driver
+  const cooldownKey = `cooldown:${driverId}:${rideId}`;
+  await cacheSet(cooldownKey, '1', config.fare.offerCooldownSeconds);
+
+  // Cancel the offer expiration job
+  void cancelOfferExpiration(offerId);
+
+  // Notify driver their offer was rejected
+  emitToUser(driverId, 'ride:offer_rejected', { rideId, offerId });
+
+  void notificationService.send(driverId, {
+    type: NotificationType.RideOfferRejected,
+    title: 'Offer declined',
+    body: 'The rider declined your offer',
+    data: { rideId },
+  });
+
+  // If ride reverted to Pending, notify rider
+  if (rideReverted) {
+    emitToUser(riderId, 'ride:status_changed', {
+      rideId,
+      status: RideStatus.Pending,
+      timestamp: new Date().toISOString(),
+    });
+  }
 }
 
 async function arriveAtPickup(rideId: string, driverId: string): Promise<Ride> {
@@ -515,7 +676,14 @@ async function completeRide(rideId: string, driverId: string): Promise<Ride> {
       if (r.driverId !== driverId) throw appError(ErrorCodes.AUTH.FORBIDDEN);
       validateTransition(r.status, RideStatus.Completed);
 
-      const finalFare = Number(r.calculatedFare);
+      // Use the accepted offer's offeredFare as the final fare (negotiated price)
+      const acceptedOffer = await RideOffer.findOne({
+        where: { rideId, status: OfferStatus.Accepted },
+        transaction: t,
+      });
+      const finalFare = acceptedOffer
+        ? Number(acceptedOffer.offeredFare)
+        : Number(r.calculatedFare);
       const commissionAmount = Math.round(finalFare * (Number(r.commissionRate) / 100) * 100) / 100;
       const driverEarning = Math.round((finalFare - commissionAmount) * 100) / 100;
 
@@ -656,6 +824,7 @@ export {
   pickDriver,
   refuseRide,
   requestRide,
+  riderRefuseOffer,
   startRide,
 };
 export type { CreateRideInput, FareEstimateInput };

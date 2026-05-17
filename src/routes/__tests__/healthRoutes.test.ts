@@ -20,6 +20,8 @@ jest.mock('@/jobs/producers', () => ({
   enqueueRideExpiration: jest.fn().mockResolvedValue(undefined),
   enqueueScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
   cancelRideExpiration: jest.fn().mockResolvedValue(undefined),
+  cancelOfferExpiration: jest.fn().mockResolvedValue(undefined),
+  enqueueOfferExpiration: jest.fn().mockResolvedValue(undefined),
   cancelScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
   enqueueRatingRecalculation: jest.fn().mockResolvedValue(undefined),
 }));

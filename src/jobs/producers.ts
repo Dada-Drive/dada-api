@@ -1,6 +1,7 @@
 import { config } from '@/config/index';
 import {
   notificationQueue,
+  offerExpirationQueue,
   otpDeliveryQueue,
   paymentVerificationQueue,
   ratingRecalculationQueue,
@@ -10,6 +11,7 @@ import {
 import { logger } from '@/utils/logger';
 
 import type { NotificationJobData } from './workers/notificationWorker';
+import type { OfferExpirationJobData } from './workers/offerExpirationWorker';
 import type { OtpDeliveryJobData } from './workers/otpDeliveryWorker';
 import type { PaymentVerificationJobData } from './workers/paymentVerificationWorker';
 import type { RatingRecalculationJobData } from './workers/ratingRecalculationWorker';
@@ -121,6 +123,41 @@ async function enqueueRatingRecalculation(data: RatingRecalculationJobData): Pro
   }
 }
 
+async function enqueueOfferExpiration(
+  data: OfferExpirationJobData,
+  delayMs: number,
+): Promise<void> {
+  try {
+    await offerExpirationQueue.add('expire-offer', data, {
+      jobId: `offer-expire-${data.offerId}`,
+      delay: Math.max(0, delayMs),
+      attempts: config.jobs.offerExpiration.attempts,
+      backoff: config.jobs.offerExpiration.backoff,
+    });
+  } catch (err) {
+    logger.error('Failed to enqueue offer expiration', {
+      offerId: data.offerId,
+      error: err instanceof Error ? err.message : String(err),
+      component: 'jobs',
+    });
+  }
+}
+
+async function cancelOfferExpiration(offerId: string): Promise<void> {
+  try {
+    const job = await offerExpirationQueue.getJob(`offer-expire-${offerId}`);
+    if (job && (await job.isDelayed())) {
+      await job.remove();
+    }
+  } catch (err) {
+    logger.error('Failed to cancel offer expiration job', {
+      offerId,
+      error: err instanceof Error ? err.message : String(err),
+      component: 'jobs',
+    });
+  }
+}
+
 async function cancelRideExpiration(rideId: string): Promise<void> {
   try {
     const job = await rideExpirationQueue.getJob(`expire-${rideId}`);
@@ -152,9 +189,11 @@ async function cancelScheduledRideActivation(rideId: string): Promise<void> {
 }
 
 export {
+  cancelOfferExpiration,
   cancelRideExpiration,
   cancelScheduledRideActivation,
   enqueueNotification,
+  enqueueOfferExpiration,
   enqueueOtpDelivery,
   enqueuePaymentVerification,
   enqueueRatingRecalculation,

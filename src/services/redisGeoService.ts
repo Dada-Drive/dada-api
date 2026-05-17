@@ -1,7 +1,7 @@
 import { redisClient } from '@/config/redis';
 import { logger } from '@/utils/logger';
 
-import type { VehicleType } from '@/types/enums';
+import type { ServiceType, VehicleType } from '@/types/enums';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -15,6 +15,7 @@ const MAX_RESULTS = 50;
 
 interface DriverMeta {
   vehicleType: string;
+  serviceTypes: string;
   rating: string;
   fullName: string;
   heading: string;
@@ -37,7 +38,13 @@ async function updateDriverLocation(
   driverId: string,
   lat: number,
   lng: number,
-  meta: { vehicleType: VehicleType; rating: number | null; fullName: string; heading?: number },
+  meta: {
+    vehicleType: VehicleType;
+    serviceTypes?: string;
+    rating: number | null;
+    fullName: string;
+    heading?: number;
+  },
 ): Promise<void> {
   try {
     const metaKey = `${META_PREFIX}${driverId}${META_SUFFIX}`;
@@ -46,6 +53,7 @@ async function updateDriverLocation(
     pipeline.geoadd(GEO_KEY, lng, lat, driverId);
     pipeline.hset(metaKey, {
       vehicleType: meta.vehicleType,
+      serviceTypes: meta.serviceTypes ?? '',
       rating: String(meta.rating ?? '0'),
       fullName: meta.fullName,
       heading: String(meta.heading ?? ''),
@@ -89,6 +97,7 @@ async function getNearbyDrivers(
   lng: number,
   radiusKm: number,
   vehicleType?: VehicleType,
+  serviceType?: ServiceType,
 ): Promise<NearbyDriver[]> {
   try {
     // GEOSEARCH returns: [[member, distance, [lng, lat]], ...]
@@ -133,6 +142,14 @@ async function getNearbyDrivers(
 
       // Filter by vehicle type if requested
       if (vehicleType && meta.vehicleType !== vehicleType) continue;
+
+      // Filter by service type if requested
+      if (serviceType && meta.serviceTypes) {
+        const registered = meta.serviceTypes.split(',');
+        if (!registered.includes(serviceType)) continue;
+      } else if (serviceType && !meta.serviceTypes) {
+        continue;
+      }
 
       drivers.push({
         driverId,

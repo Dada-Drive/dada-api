@@ -1,10 +1,10 @@
 import { Op } from 'sequelize';
 
 import { redisClient } from '@/config/redis';
-import { DriverProfile, User, Vehicle } from '@/models/index';
+import { DriverProfile, DriverServiceType, User, Vehicle } from '@/models/index';
 import { cacheDel, cacheGet, cacheSet } from '@/services/cacheService';
 import * as redisGeo from '@/services/redisGeoService';
-import { VehicleType } from '@/types/enums';
+import { ServiceType, VehicleType } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { logger } from '@/utils/logger';
 
@@ -187,8 +187,14 @@ async function toggleOnlineStatus(userId: string, isOnline: boolean): Promise<Dr
   if (isOnline && profile.lastLat != null && profile.lastLng != null) {
     const vehicle = (profile as unknown as { vehicle?: Vehicle }).vehicle;
     const user = (profile as unknown as { user?: User }).user;
+    const driverSvcTypes = await DriverServiceType.findAll({
+      where: { driverId: userId },
+      attributes: ['serviceType'],
+    });
+    const svcTypesStr = driverSvcTypes.map((s) => s.serviceType).join(',');
     await redisGeo.updateDriverLocation(userId, profile.lastLat, profile.lastLng, {
       vehicleType: vehicle?.vehicleType ?? VehicleType.Economy,
+      serviceTypes: svcTypesStr,
       rating: profile.rating != null ? Number(profile.rating) : null,
       fullName: user?.fullName ?? '',
     });
@@ -220,11 +226,49 @@ async function updateLocation(userId: string, lat: number, lng: number): Promise
 
   const vehicle = (profile as unknown as { vehicle?: Vehicle }).vehicle;
   const user = (profile as unknown as { user?: User }).user;
+  const driverSvcTypes = await DriverServiceType.findAll({
+    where: { driverId: userId },
+    attributes: ['serviceType'],
+  });
+  const svcTypesStr = driverSvcTypes.map((s) => s.serviceType).join(',');
   await redisGeo.updateDriverLocation(userId, lat, lng, {
     vehicleType: vehicle?.vehicleType ?? VehicleType.Economy,
+    serviceTypes: svcTypesStr,
     rating: profile.rating != null ? Number(profile.rating) : null,
     fullName: user?.fullName ?? '',
   });
+}
+
+// ── Driver Service Types ───────────────────────────────────────────────────
+
+async function getServiceTypes(userId: string): Promise<DriverServiceType[]> {
+  return DriverServiceType.findAll({ where: { driverId: userId } });
+}
+
+async function addServiceType(
+  userId: string,
+  serviceType: ServiceType,
+): Promise<DriverServiceType> {
+  const existing = await DriverServiceType.findOne({
+    where: { driverId: userId, serviceType },
+  });
+  if (existing) {
+    throw appError(ErrorCodes.GENERAL.VALIDATION_ERROR, {
+      message: `Already registered for service type: ${serviceType}`,
+    });
+  }
+  return DriverServiceType.create({ driverId: userId, serviceType });
+}
+
+async function removeServiceType(userId: string, serviceType: ServiceType): Promise<void> {
+  const count = await DriverServiceType.destroy({
+    where: { driverId: userId, serviceType },
+  });
+  if (count === 0) {
+    throw appError(ErrorCodes.GENERAL.NOT_FOUND, {
+      message: `Not registered for service type: ${serviceType}`,
+    });
+  }
 }
 
 // ── Get Nearby Drivers ──────────────────────────────────────────────────────
@@ -287,11 +331,14 @@ async function getNearbyDrivers(query: NearbyQuery): Promise<NearbyDriver[]> {
 }
 
 export {
+  addServiceType,
   createProfile,
   getNearbyDrivers,
   getProfile,
+  getServiceTypes,
   getVehicle,
   registerVehicle,
+  removeServiceType,
   toggleOnlineStatus,
   updateLocation,
   updateProfile,

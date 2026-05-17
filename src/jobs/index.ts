@@ -1,6 +1,7 @@
 import { closeSharedConnection, getSharedConnection } from '@/jobs/connection';
 import { allQueues } from '@/jobs/queues';
 import { createNotificationWorker } from '@/jobs/workers/notificationWorker';
+import { createOfferExpirationWorker } from '@/jobs/workers/offerExpirationWorker';
 import { createOtpDeliveryWorker } from '@/jobs/workers/otpDeliveryWorker';
 import { createPaymentVerificationWorker } from '@/jobs/workers/paymentVerificationWorker';
 import { createRatingRecalculationWorker } from '@/jobs/workers/ratingRecalculationWorker';
@@ -22,6 +23,7 @@ async function initializeJobSystem(): Promise<void> {
 
   allWorkers.push(
     createNotificationWorker(),
+    createOfferExpirationWorker(),
     createPaymentVerificationWorker(),
     createRideExpirationWorker(),
     createScheduledRideActivationWorker(),

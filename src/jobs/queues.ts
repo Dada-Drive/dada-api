@@ -24,6 +24,11 @@ const scheduledRideActivationQueue = new Queue('scheduled-ride-activation', {
   defaultJobOptions: { removeOnComplete: true, removeOnFail: 200 },
 });
 
+const offerExpirationQueue = new Queue('offer-expiration', {
+  connection: getSharedConnection(),
+  defaultJobOptions: { removeOnComplete: true, removeOnFail: 200 },
+});
+
 const otpDeliveryQueue = new Queue('otp-delivery', {
   connection: getSharedConnection(),
   defaultJobOptions: { removeOnComplete: 50, removeOnFail: 200 },
@@ -39,6 +44,7 @@ const allQueues = [
   paymentVerificationQueue,
   rideExpirationQueue,
   scheduledRideActivationQueue,
+  offerExpirationQueue,
   otpDeliveryQueue,
   ratingRecalculationQueue,
 ];
@@ -46,6 +52,7 @@ const allQueues = [
 export {
   allQueues,
   notificationQueue,
+  offerExpirationQueue,
   otpDeliveryQueue,
   paymentVerificationQueue,
   ratingRecalculationQueue,

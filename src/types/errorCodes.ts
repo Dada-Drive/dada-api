@@ -72,6 +72,26 @@ const RIDE = {
     message: 'Ride location is outside service area',
   },
   OFFER_NOT_FOUND: { code: 'OFFER_NOT_FOUND', status: 404, message: 'Ride offer not found' },
+  OFFER_FARE_OUT_OF_RANGE: {
+    code: 'OFFER_FARE_OUT_OF_RANGE',
+    status: 400,
+    message: 'Offered fare is outside the acceptable range',
+  },
+  OFFER_COOLDOWN_ACTIVE: {
+    code: 'OFFER_COOLDOWN_ACTIVE',
+    status: 429,
+    message: 'Please wait before submitting another offer for this ride',
+  },
+  SERVICE_NOT_IMPLEMENTED: {
+    code: 'SERVICE_NOT_IMPLEMENTED',
+    status: 501,
+    message: 'This service type is not yet available',
+  },
+  SERVICE_TYPE_MISMATCH: {
+    code: 'SERVICE_TYPE_MISMATCH',
+    status: 400,
+    message: 'Driver is not registered for this service type',
+  },
   RIDE_STOP_NOT_FOUND: {
     code: 'RIDE_STOP_NOT_FOUND',
     status: 404,

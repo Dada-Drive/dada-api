@@ -5,12 +5,14 @@ import { protect } from '@/middlewares/auth';
 import { idempotency } from '@/middlewares/idempotency';
 import { validate } from '@/middlewares/validate';
 import {
+  acceptRideValidation,
   cancelRideValidation,
   createRideValidation,
   fareEstimateValidation,
   getRidesValidation,
   pickDriverValidation,
   rideIdValidation,
+  riderRefuseOfferValidation,
 } from '@/validators/rideValidators';
 
 const rideRoutes = Router();
@@ -26,7 +28,10 @@ const rideRoutes = Router();
  *       - in: query
  *         name: vehicleType
  *         required: true
- *         schema: { type: string, enum: [economy, premium, van] }
+ *         schema: { type: string, enum: [economy, premium, van, motorcycle] }
+ *       - in: query
+ *         name: serviceType
+ *         schema: { type: string, enum: [taxi, covoiturage, cours_partage, vespa, services] }
  *       - in: query
  *         name: distanceKm
  *         required: true
@@ -41,7 +46,15 @@ const rideRoutes = Router();
  *     tags: [Rides]
  *     summary: Request a new ride
  *     security: [{ bearerAuth: [] }]
- *     responses: { 201: { description: Ride created }, 400: { description: Validation error } }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               serviceType: { type: string, enum: [taxi, covoiturage, cours_partage, vespa] }
+ *               hideEstimate: { type: boolean, default: false }
+ *     responses: { 201: { description: Ride created }, 400: { description: Validation error }, 501: { description: Service type not implemented } }
  * /rides/my:
  *   get:
  *     tags: [Rides]
@@ -98,9 +111,20 @@ const rideRoutes = Router();
  * /rides/{id}/accept:
  *   post:
  *     tags: [Rides]
- *     summary: Driver creates an offer for a ride
+ *     summary: Driver submits a fare offer for a ride
  *     security: [{ bearerAuth: [] }]
- *     responses: { 200: { description: Offer created, ride status set to offered }, 409: { description: Already offered } }
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               offeredFare: { type: number, description: "Driver's proposed fare (defaults to calculatedFare)" }
+ *     responses:
+ *       200: { description: Offer created, ride status set to offered }
+ *       400: { description: Fare out of range or service type mismatch }
+ *       409: { description: Already has pending offer }
+ *       429: { description: Cooldown active }
  * /rides/{id}/pick-driver:
  *   post:
  *     tags: [Rides]
@@ -119,9 +143,24 @@ const rideRoutes = Router();
  * /rides/{id}/refuse:
  *   post:
  *     tags: [Rides]
- *     summary: Driver refuses ride
+ *     summary: Driver withdraws their offer
  *     security: [{ bearerAuth: [] }]
- *     responses: { 200: { description: Ride refused } }
+ *     responses: { 200: { description: Offer withdrawn, cooldown set } }
+ * /rides/{id}/offers/{offerId}/refuse:
+ *   post:
+ *     tags: [Rides]
+ *     summary: Rider refuses a specific offer
+ *     security: [{ bearerAuth: [] }]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: path
+ *         name: offerId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses: { 200: { description: Offer refused, cooldown set on driver }, 403: { description: Not the ride owner }, 404: { description: Offer not found } }
  * /rides/{id}/arrive:
  *   patch:
  *     tags: [Rides]
@@ -137,7 +176,7 @@ const rideRoutes = Router();
  * /rides/{id}/complete:
  *   patch:
  *     tags: [Rides]
- *     summary: Complete ride
+ *     summary: Complete ride (finalFare uses accepted offer's offeredFare)
  *     security: [{ bearerAuth: [] }]
  *     responses: { 200: { description: Ride completed } }
  * /rides/{id}/cancel:
@@ -180,7 +219,7 @@ rideRoutes.post(
   '/:id/accept',
   protect,
   idempotency(),
-  validate(rideIdValidation),
+  validate(acceptRideValidation),
   rideController.acceptRide,
 );
 rideRoutes.post(
@@ -190,6 +229,12 @@ rideRoutes.post(
   rideController.pickDriver,
 );
 rideRoutes.post('/:id/refuse', protect, validate(rideIdValidation), rideController.refuseRide);
+rideRoutes.post(
+  '/:id/offers/:offerId/refuse',
+  protect,
+  validate(riderRefuseOfferValidation),
+  rideController.riderRefuseOffer,
+);
 rideRoutes.patch('/:id/arrive', protect, validate(rideIdValidation), rideController.arriveAtPickup);
 rideRoutes.patch('/:id/start', protect, validate(rideIdValidation), rideController.startRide);
 rideRoutes.patch('/:id/complete', protect, validate(rideIdValidation), rideController.completeRide);

@@ -7,7 +7,7 @@ import {
   Sequelize,
 } from 'sequelize';
 
-import { RideStatus, VehicleType } from '@/types/enums';
+import { RideStatus, ServiceType, VehicleType } from '@/types/enums';
 
 class Ride extends Model<InferAttributes<Ride>, InferCreationAttributes<Ride>> {
   declare id: CreationOptional<string>;
@@ -16,6 +16,8 @@ class Ride extends Model<InferAttributes<Ride>, InferCreationAttributes<Ride>> {
   declare passengerName: string | null;
   declare passengerPhone: string | null;
   declare vehicleType: VehicleType;
+  declare serviceType: CreationOptional<ServiceType>;
+  declare hideEstimate: CreationOptional<boolean>;
   declare status: CreationOptional<RideStatus>;
   declare pickupLat: number;
   declare pickupLng: number;
@@ -70,6 +72,16 @@ function initRide(sequelize: Sequelize): typeof Ride {
       vehicleType: {
         type: DataTypes.ENUM(...Object.values(VehicleType)),
         allowNull: false,
+      },
+      serviceType: {
+        type: DataTypes.ENUM(...Object.values(ServiceType)),
+        allowNull: false,
+        defaultValue: ServiceType.Taxi,
+      },
+      hideEstimate: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
       status: {
         type: DataTypes.ENUM(...Object.values(RideStatus)),

@@ -25,6 +25,15 @@ export enum VehicleType {
   Economy = 'economy',
   Premium = 'premium',
   Van = 'van',
+  Motorcycle = 'motorcycle',
+}
+
+export enum ServiceType {
+  Taxi = 'taxi',
+  Covoiturage = 'covoiturage',
+  CoursPartage = 'cours_partage',
+  Vespa = 'vespa',
+  Services = 'services',
 }
 
 export enum WalletStatus {
@@ -71,6 +80,7 @@ export enum NotificationType {
   RideCompleted = 'ride_completed',
   RideCancelled = 'ride_cancelled',
   RideExpired = 'ride_expired',
+  OfferExpired = 'offer_expired',
   WalletTopupConfirmed = 'wallet_topup_confirmed',
   WalletLowBalance = 'wallet_low_balance',
 }

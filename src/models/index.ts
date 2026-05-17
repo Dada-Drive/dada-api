@@ -5,6 +5,7 @@ import { logger } from '@/utils/logger';
 
 import { DeviceToken, initDeviceToken } from './DeviceToken';
 import { DriverProfile, initDriverProfile } from './DriverProfile';
+import { DriverServiceType, initDriverServiceType } from './DriverServiceType';
 import { Notification, initNotification } from './Notification';
 import { OtpCode, initOtpCode } from './OtpCode';
 import { Rating, initRating } from './Rating';
@@ -65,6 +66,7 @@ initOtpCode(sequelize);
 initRefreshToken(sequelize);
 initDeviceToken(sequelize);
 initNotification(sequelize);
+initDriverServiceType(sequelize);
 
 // ── Associations ───────────────────────────────────────────────────────────
 // User ↔ DriverProfile (1:1)
@@ -122,6 +124,10 @@ DeviceToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 User.hasMany(Notification, { foreignKey: 'userId', as: 'notifications' });
 Notification.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
+// User ↔ DriverServiceType (1:N — driver registers for multiple service types)
+User.hasMany(DriverServiceType, { foreignKey: 'driverId', as: 'serviceTypes' });
+DriverServiceType.belongsTo(User, { foreignKey: 'driverId', as: 'driver' });
+
 // ── Database connection ────────────────────────────────────────────────────
 async function initializeDatabase(): Promise<void> {
   try {
@@ -158,4 +164,5 @@ export {
   RefreshToken,
   DeviceToken,
   Notification,
+  DriverServiceType,
 };

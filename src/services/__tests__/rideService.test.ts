@@ -1,6 +1,7 @@
 import { RideOffer, Wallet, WalletTransaction } from '@/models/index';
 import * as rideService from '@/services/rideService';
 import {
+  createTestDriverServiceType,
   createTestRide,
   createTestRideOffer,
   createTestUser,
@@ -27,6 +28,8 @@ jest.mock('@/jobs/producers', () => ({
   enqueueRideExpiration: jest.fn().mockResolvedValue(undefined),
   enqueueScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
   cancelRideExpiration: jest.fn().mockResolvedValue(undefined),
+  cancelOfferExpiration: jest.fn().mockResolvedValue(undefined),
+  enqueueOfferExpiration: jest.fn().mockResolvedValue(undefined),
   cancelScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
   enqueueNotification: jest.fn().mockResolvedValue(undefined),
   enqueueOtpDelivery: jest.fn().mockResolvedValue(undefined),
@@ -58,6 +61,7 @@ describe('Ride Service', () => {
       const rider = await createTestUser({ role: UserRole.Rider });
       const driver = await createTestUser({ role: UserRole.Driver });
       await createTestWallet(driver.id, 0);
+      await createTestDriverServiceType(driver.id);
 
       // Request
       const ride = await rideService.requestRide(rider.id, {
@@ -119,7 +123,9 @@ describe('Ride Service', () => {
       const rider = await createTestUser({ role: UserRole.Rider });
       const drivers = [];
       for (let i = 0; i < 5; i++) {
-        drivers.push(await createTestUser({ role: UserRole.Driver }));
+        const d = await createTestUser({ role: UserRole.Driver });
+        await createTestDriverServiceType(d.id);
+        drivers.push(d);
       }
       const ride = await createTestRide(rider.id);
 
@@ -140,6 +146,7 @@ describe('Ride Service', () => {
     it('rejects duplicate offer from same driver', async () => {
       const rider = await createTestUser({ role: UserRole.Rider });
       const driver = await createTestUser({ role: UserRole.Driver });
+      await createTestDriverServiceType(driver.id);
       const ride = await createTestRide(rider.id);
 
       await rideService.acceptRide(ride.id, driver.id);
@@ -151,6 +158,7 @@ describe('Ride Service', () => {
     it('rejects offer on completed ride', async () => {
       const rider = await createTestUser({ role: UserRole.Rider });
       const driver = await createTestUser({ role: UserRole.Driver });
+      await createTestDriverServiceType(driver.id);
       const ride = await createTestRide(rider.id, { status: RideStatus.Completed });
 
       await expect(rideService.acceptRide(ride.id, driver.id)).rejects.toMatchObject({

@@ -5,6 +5,8 @@
 **Scale:** 0–5,000 concurrent users · 1–3 developers  
 **Currency:** TND (Tunisian Dinar) · DECIMAL(10,2)
 
+> **Status (2026-05-14):** Phases 1–12 are complete. Phase 13 was inserted after the mobile redesign to cover the negotiation-based pricing flow and service categories — schema-changing features that must land before production hardening. The original "CI/CD & Production Hardening" phase has been renumbered to Phase 14 as the final production-readiness gate.
+
 ---
 
 ## Phase 1: Project Scaffolding & Config
@@ -1290,7 +1292,152 @@ REDIS_URL
 
 ---
 
-## Phase 13: CI/CD & Production Hardening
+## Phase 13: Negotiation Flow & Service Categories
+
+### Goals
+- Add `service_type` enum alongside `vehicle_type` to support multiple ride categories (taxi, covoiturage, cours_partage, vespa, services)
+- Replace fixed-fare acceptance with an InDrive-inspired negotiation flow where drivers propose fares and riders choose from competing offers
+- Implement per-offer expiration (30s validity), cooldown enforcement, and fare clamping — all server-side
+- Defer the `services` category (mechanic/roadside) with a clean NOT_IMPLEMENTED guard (Option C)
+
+### Tasks
+
+#### Schema Additions
+- [ ] Create migration: add `service_type` PostgreSQL ENUM (`taxi`, `covoiturage`, `cours_partage`, `vespa`, `services`)
+- [ ] Add `service_type` column to `rides` table (NOT NULL, DEFAULT `'taxi'`), backfill existing rows
+- [ ] Add `hide_estimate` BOOLEAN column to `rides` table (NOT NULL, DEFAULT `false`)
+- [ ] Add `expires_at` TIMESTAMPTZ column to `ride_offers` table (nullable)
+- [ ] Add `motorcycle` value to existing `vehicle_type` ENUM
+- [ ] Create `driver_service_types` join table: `(id UUID PK, driver_id UUID FK, service_type ENUM, created_at)` with UNIQUE on `(driver_id, service_type)`
+- [ ] Drop existing UNIQUE index on `(ride_id, driver_id)` in `ride_offers`
+- [ ] Add partial unique index: `UNIQUE(ride_id, driver_id) WHERE status = 'pending'` — enforces at most one pending offer per driver per ride
+- [ ] Add `ServiceType` enum to `src/types/enums.ts`
+- [ ] Add `motorcycle` to `VehicleType` enum in `src/types/enums.ts`
+- [ ] Add `serviceType` and `hideEstimate` fields to `Ride` model
+- [ ] Add `expiresAt` field to `RideOffer` model
+- [ ] Create `DriverServiceType` model with associations to `DriverProfile`
+
+#### Fare Config Refactor
+- [ ] Refactor `config.fare` to key by `service_type` instead of `vehicle_type`:
+  ```typescript
+  fare: {
+    serviceTypes: {
+      taxi:          { baseFare: 2.5, perKm: 1.2, perMin: 0.3 },
+      covoiturage:   { baseFare: 2.0, perKm: 1.0, perMin: 0.25 },
+      cours_partage: { baseFare: 1.5, perKm: 0.8, perMin: 0.2 },
+      vespa:         { baseFare: 1.5, perKm: 0.9, perMin: 0.2 },
+    },
+    currency: 'TND',
+  }
+  ```
+- [ ] Add constants to `FARE_CONFIG`: `OFFER_VALIDITY_SECONDS: 30`, `OFFER_COOLDOWN_SECONDS: 30`, `OFFER_FARE_TOLERANCE_TND: 1`
+- [ ] Update `calculateFare()` to key by `serviceType` instead of `vehicleType`
+- [ ] Update fare cache key pattern to use `serviceType`
+
+#### Driver–Service Matching
+- [ ] Add `serviceTypes` field to Redis driver metadata hash (comma-separated list of registered service types)
+- [ ] Update `redisGeoService.getNearbyDrivers()` to accept optional `serviceType` filter, match against metadata
+- [ ] Update `emitToNearbyDrivers()` to pass `serviceType` instead of `vehicleType`
+- [ ] Add CRUD endpoints for driver service type registration: `POST /driver/service-types`, `GET /driver/service-types`, `DELETE /driver/service-types/:serviceType`
+- [ ] Update `driverService.getNearbyDrivers()` SQL fallback to join `driver_service_types`
+- [ ] Update `ride:new_request` emission to filter by `serviceType`
+
+#### Negotiation Flow
+- [ ] Update `acceptRide()` to accept `offeredFare` from request body (no longer hardcoded to `calculatedFare`)
+- [ ] Add fare clamp validation: when `hide_estimate = false`, enforce `offeredFare ∈ [calculatedFare - 1, calculatedFare + 1]` TND
+- [ ] Add open-fare validation: when `hide_estimate = true`, enforce `offeredFare > 0` only; return `calculatedFare` as `suggestedFare` hint in offer payload
+- [ ] Set `RideOffer.expiresAt = NOW() + 30s` on offer creation
+- [ ] Enqueue `offerExpirationWorker` delayed job (30s) on each offer creation
+- [ ] Cancel offer expiration job when offer is accepted or rejected before expiry
+- [ ] Add rider-refuse-offer endpoint: `POST /rides/:id/offers/:offerId/refuse` — sets offer to `Rejected`, sets Redis cooldown key
+- [ ] Add new error codes: `NOT_IMPLEMENTED`, `OFFER_FARE_OUT_OF_RANGE`, `OFFER_COOLDOWN_ACTIVE`, `SERVICE_TYPE_MISMATCH`
+- [ ] Update route validation for `POST /rides/:id/accept` to require `offeredFare` in body
+- [ ] Update route validation for `POST /rides` to require `service_type`
+- [ ] Validate driver's registered service types include ride's `service_type` on offer creation
+- [ ] Guard `service_type = 'services'` in `requestRide()` — throw `AppError(501, 'NOT_IMPLEMENTED')`
+
+#### Offer Expiration Worker + Cooldown
+- [ ] Create `offerExpirationWorker`: BullMQ delayed job per offer (30s delay)
+  - Idempotency: skip if offer no longer `Pending`
+  - Set `RideOffer.status = Expired`
+  - Set Redis cooldown key `cooldown:{driverId}:{rideId}` with 30s TTL
+  - Emit `ride:offer_expired` to rider and driver
+  - Send push notification to driver
+- [ ] Add `enqueueOfferExpiration()` and `cancelOfferExpiration()` to `src/jobs/producers.ts`
+- [ ] Add cooldown check in `acceptRide()`: `EXISTS cooldown:{driverId}:{rideId}` → throw `OFFER_COOLDOWN_ACTIVE` (429)
+- [ ] Set cooldown key on rider refuse (same as expiration)
+
+#### Socket Event Additions
+- [ ] Add `ride:offer_expired` event type to `socketTypes.ts` with payload: `{ rideId, offerId, driverId }`
+- [ ] Update `ride:new_request` payload to include `serviceType`
+- [ ] Update `ride:new_offer` payload: include `suggestedFare` (when `hideEstimate = true`), `expiresAt`
+- [ ] Add `NotificationType.OfferExpired` to notification enums
+
+#### Services Category (Option C — Deferred)
+- [ ] `service_type = 'services'` exists in ENUM but is rejected at request time with `NOT_IMPLEMENTED`
+- [ ] Document in OpenAPI: `services` type returns 501 — "coming in a future release"
+
+#### Test Additions
+- [ ] Unit tests: fare clamp logic — valid range, out of range, hide_estimate variations
+- [ ] Unit tests: cooldown check — blocked during cooldown, allowed after TTL expires
+- [ ] Unit tests: offer expiration worker — expires pending offer, skips non-pending
+- [ ] Integration tests: full negotiation flow — request ride → driver offers → rider refuses → cooldown → driver re-offers → rider accepts
+- [ ] Integration tests: multiple drivers competing — three drivers offer, rider picks one, others rejected
+- [ ] Integration tests: offer auto-expires after 30s, driver re-offers after cooldown
+- [ ] Update E2E `riderFlow.test.ts` — add `service_type` to ride creation, `offeredFare` to accept
+- [ ] Update E2E `driverFlow.test.ts` — register service types before offering, send `offeredFare`
+- [ ] Update E2E `paymentFlow.test.ts` — ride creation input includes `service_type`
+
+#### OpenAPI / Swagger Updates
+- [ ] Document `service_type` field on ride creation and response schemas
+- [ ] Document `hide_estimate` field on ride creation
+- [ ] Document `offeredFare` as required body param on `POST /rides/:id/accept`
+- [ ] Document new `POST /rides/:id/offers/:offerId/refuse` endpoint
+- [ ] Document driver service type CRUD endpoints
+- [ ] Document `services` type 501 behavior
+- [ ] Update `ride:new_offer` socket event documentation with `expiresAt` and `suggestedFare`
+
+#### Backfill Migration
+- [ ] Backfill `service_type = 'taxi'` for all existing rides (handled by DEFAULT in column addition)
+- [ ] Backfill `hide_estimate = false` for all existing rides (handled by DEFAULT)
+- [ ] Seed default `driver_service_types` entries for existing drivers: map `vehicle_type` → `service_type` (economy/premium → taxi, van → taxi, motorcycle → vespa)
+
+### Deliverables
+- `service_type` enum on rides with fare config per service type
+- Negotiation flow: drivers propose fares, riders see stacked offers, 30s per-offer validity
+- Fare clamp enforcement: ±1 TND when estimate is visible, open pricing when hidden
+- Per-(driver, ride) cooldown after refusal or expiration
+- Offer expiration worker (BullMQ delayed jobs)
+- `ride:offer_expired` socket event
+- Driver service type registration (many-to-many)
+- `motorcycle` vehicle type for vespa service
+- `services` category guarded with NOT_IMPLEMENTED (Option C)
+- Full test coverage for negotiation, clamp, cooldown, and expiration logic
+
+### Checkpoint
+- `npm test` passes all tests including new negotiation flow tests
+- Fare clamp rejects out-of-range offers with `OFFER_FARE_OUT_OF_RANGE`
+- Cooldown blocks re-offers within 30s window
+- Offer auto-expires after 30s, driver notified via socket and push
+- Rider can refuse individual offers; driver enters cooldown
+- `service_type = 'services'` returns 501
+- `getNearbyDrivers` filters by `serviceType`
+- E2E flows pass with updated inputs
+
+### Commit Strategy
+- `feat(schema): add service_type enum, hide_estimate, offer expires_at, driver_service_types`
+- `refactor(fare): key fare config by service_type instead of vehicle_type`
+- `feat(driver): add service type registration and matching in getNearbyDrivers`
+- `feat(ride): implement negotiation flow with fare clamp and hide_estimate`
+- `feat(ride): add offer expiration worker and cooldown enforcement`
+- `feat(socket): add ride:offer_expired event and updated offer payloads`
+- `feat(ride): guard services category with NOT_IMPLEMENTED (Option C)`
+- `test(ride): add negotiation flow, fare clamp, cooldown, and expiration tests`
+- `docs(api): update OpenAPI spec for negotiation flow and service categories`
+
+---
+
+## Phase 14: CI/CD & Production Hardening
 
 ### Goals
 - Set up GitHub Actions pipeline for automated testing and deployment
@@ -1418,10 +1565,13 @@ REDIS_URL
 | 10. Notifications | Phase 9 | Notification service and device token tests |
 | 11. Observability | Phase 3 | Health check and logging tests |
 | 12. E2E Tests & Coverage | Phase 10 | E2E flows + coverage enforcement |
-| 13. CI/CD & Hardening | Phase 11 | CI runs all tests automatically |
+| 13. Negotiation Flow & Service Categories | Phase 12 | Fare clamp, cooldown, offer expiration, negotiation E2E tests |
+| 14. CI/CD & Hardening | Phase 13 | CI runs all tests automatically |
 
 **Testing rule:** Every phase from 4 onward writes tests for what it builds. `npm test` must pass before every commit.
 
 **Parallelism opportunities:**
 - Phases 7 + 11 can start as soon as Phase 4 is complete
 - Phases 8 + 9 can be worked in parallel after Phase 6
+- Phase 13 tasks 1–3 (schema additions, fare config refactor, driver–service matching) can be parallelized
+- Phase 14 cannot start until Phase 13 is complete (schema changes must land before production hardening)

@@ -53,7 +53,7 @@ export async function processScheduledRideActivation(
       vehicleType: ride.vehicleType,
       calculatedFare: ride.calculatedFare,
     },
-    ride.vehicleType,
+    ride.serviceType,
   );
 
   // Notify rider that their scheduled ride is now active

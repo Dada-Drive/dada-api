@@ -15,6 +15,7 @@ class RideOffer extends Model<InferAttributes<RideOffer>, InferCreationAttribute
   declare driverId: string;
   declare status: CreationOptional<OfferStatus>;
   declare offeredFare: number;
+  declare expiresAt: Date | null;
   declare createdAt: CreationOptional<Date>;
   declare updatedAt: CreationOptional<Date>;
 }
@@ -43,6 +44,10 @@ function initRideOffer(sequelize: Sequelize): typeof RideOffer {
       offeredFare: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: false,
+      },
+      expiresAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
       },
       createdAt: DataTypes.DATE,
       updatedAt: DataTypes.DATE,

@@ -1,6 +1,6 @@
-import { body, query } from 'express-validator';
+import { body, param, query } from 'express-validator';
 
-import { VehicleType } from '@/types/enums';
+import { ServiceType, VehicleType } from '@/types/enums';
 import { coordinateFields, textField } from '@/validators/common';
 
 const createProfileValidation = [
@@ -77,10 +77,24 @@ const nearbyQueryValidation = [
 
 const statusToggleValidation = [body('isOnline').isBoolean().withMessage('Must be a boolean')];
 
+const addServiceTypeValidation = [
+  body('serviceType')
+    .isIn(Object.values(ServiceType))
+    .withMessage(`Must be one of: ${Object.values(ServiceType).join(', ')}`),
+];
+
+const removeServiceTypeValidation = [
+  param('serviceType')
+    .isIn(Object.values(ServiceType))
+    .withMessage(`Must be one of: ${Object.values(ServiceType).join(', ')}`),
+];
+
 export {
+  addServiceTypeValidation,
   createProfileValidation,
   nearbyQueryValidation,
   registerVehicleValidation,
+  removeServiceTypeValidation,
   statusToggleValidation,
   updateLocationValidation,
   updateProfileValidation,

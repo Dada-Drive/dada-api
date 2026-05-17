@@ -22,6 +22,7 @@ describe('Ride State Machine', () => {
     const validCases: [RideStatus, RideStatus][] = [
       [RideStatus.Pending, RideStatus.Offered],
       [RideStatus.Pending, RideStatus.Cancelled],
+      [RideStatus.Offered, RideStatus.Pending],
       [RideStatus.Offered, RideStatus.Accepted],
       [RideStatus.Offered, RideStatus.Cancelled],
       [RideStatus.Accepted, RideStatus.InProgress],
@@ -38,7 +39,6 @@ describe('Ride State Machine', () => {
       [RideStatus.Pending, RideStatus.Accepted],
       [RideStatus.Pending, RideStatus.InProgress],
       [RideStatus.Pending, RideStatus.Completed],
-      [RideStatus.Offered, RideStatus.Pending],
       [RideStatus.Offered, RideStatus.InProgress],
       [RideStatus.Offered, RideStatus.Completed],
       [RideStatus.Accepted, RideStatus.Pending],

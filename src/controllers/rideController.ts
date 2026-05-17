@@ -1,20 +1,26 @@
 import { Request, Response } from 'express';
 
 import * as rideService from '@/services/rideService';
-import { VehicleType } from '@/types/enums';
+import { ServiceType, VehicleType } from '@/types/enums';
 import { asyncHandler } from '@/utils/asyncHandler';
 import { sendCreated, sendPaginated, sendSuccess } from '@/utils/responseHelpers';
 
 // ── Fare Estimate ───────────────────────────────────────────────────────────
 
 const getFareEstimate = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const { vehicleType, distanceKm, estimatedMinutes } = req.query as unknown as {
+  const { vehicleType, serviceType, distanceKm, estimatedMinutes } = req.query as unknown as {
     vehicleType: VehicleType;
+    serviceType?: ServiceType;
     distanceKm: number;
     estimatedMinutes: number;
   };
 
-  const result = await rideService.calculateFare({ vehicleType, distanceKm, estimatedMinutes });
+  const result = await rideService.calculateFare({
+    vehicleType,
+    serviceType,
+    distanceKm,
+    estimatedMinutes,
+  });
   sendSuccess(res, result);
 });
 
@@ -70,7 +76,12 @@ const getRideOffers = asyncHandler(async (req: Request, res: Response): Promise<
 // ── Lifecycle Actions ───────────────────────────────────────────────────────
 
 const acceptRide = asyncHandler(async (req: Request, res: Response): Promise<void> => {
-  const result = await rideService.acceptRide(req.params.id as string, req.user!.userId);
+  const offeredFare = (req.body as { offeredFare?: number } | undefined)?.offeredFare;
+  const result = await rideService.acceptRide(
+    req.params.id as string,
+    req.user!.userId,
+    offeredFare,
+  );
   sendSuccess(res, result);
 });
 
@@ -82,6 +93,15 @@ const pickDriver = asyncHandler(async (req: Request, res: Response): Promise<voi
 
 const refuseRide = asyncHandler(async (req: Request, res: Response): Promise<void> => {
   await rideService.refuseRide(req.params.id as string, req.user!.userId);
+  sendSuccess(res, { refused: true });
+});
+
+const riderRefuseOffer = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  await rideService.riderRefuseOffer(
+    req.params.id as string,
+    req.user!.userId,
+    req.params.offerId as string,
+  );
   sendSuccess(res, { refused: true });
 });
 
@@ -120,5 +140,6 @@ export {
   getScheduledRides,
   pickDriver,
   refuseRide,
+  riderRefuseOffer,
   startRide,
 };

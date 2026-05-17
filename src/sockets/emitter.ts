@@ -4,7 +4,7 @@ import { ACTIVE_RIDE_PREFIX } from '@/sockets/socketAuth';
 import { getIO } from '@/sockets/socketServer';
 import { logger } from '@/utils/logger';
 
-import type { VehicleType } from '@/types/enums';
+import type { ServiceType } from '@/types/enums';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -46,13 +46,13 @@ async function emitToNearbyDrivers(
   radiusKm: number,
   event: string,
   payload: unknown,
-  vehicleType?: VehicleType,
+  serviceType?: ServiceType,
 ): Promise<void> {
   const io = getIO();
   if (!io) return;
 
   try {
-    const drivers = await redisGeo.getNearbyDrivers(lat, lng, radiusKm, vehicleType);
+    const drivers = await redisGeo.getNearbyDrivers(lat, lng, radiusKm, undefined, serviceType);
     const driversNs = io.of('/drivers');
 
     for (const driver of drivers) {

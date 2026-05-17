@@ -3,6 +3,7 @@ import bcrypt from 'bcrypt';
 import {
   DeviceToken,
   DriverProfile,
+  DriverServiceType,
   Notification,
   OtpCode,
   Rating,
@@ -20,6 +21,7 @@ import {
   NotificationType,
   OfferStatus,
   RideStatus,
+  ServiceType,
   TransactionStatus,
   TransactionType,
   UserRole,
@@ -160,6 +162,15 @@ async function createTestVehicle(
     color: overrides.color ?? 'White',
     vehicleType: overrides.vehicleType ?? VehicleType.Economy,
   });
+}
+
+// ── Driver Service Type Factory ─────────────────────────────────────────────
+
+async function createTestDriverServiceType(
+  driverId: string,
+  serviceType: ServiceType = ServiceType.Taxi,
+): Promise<DriverServiceType> {
+  return DriverServiceType.create({ driverId, serviceType });
 }
 
 // ── Ride Factory ────────────────────────────────────────────────────────────
@@ -309,6 +320,7 @@ function resetFactoryCounters(): void {
 export {
   createTestDeviceToken,
   createTestDriverProfile,
+  createTestDriverServiceType,
   createTestNotification,
   createTestOtp,
   createTestRating,

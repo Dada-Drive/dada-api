@@ -4,9 +4,11 @@ import * as driverController from '@/controllers/driverController';
 import { protect } from '@/middlewares/auth';
 import { validate } from '@/middlewares/validate';
 import {
+  addServiceTypeValidation,
   createProfileValidation,
   nearbyQueryValidation,
   registerVehicleValidation,
+  removeServiceTypeValidation,
   statusToggleValidation,
   updateLocationValidation,
   updateProfileValidation,
@@ -134,6 +136,21 @@ driverRoutes.get(
   protect,
   validate(nearbyQueryValidation),
   driverController.getNearbyDrivers,
+);
+
+// Service Types
+driverRoutes.get('/service-types', protect, driverController.getServiceTypes);
+driverRoutes.post(
+  '/service-types',
+  protect,
+  validate(addServiceTypeValidation),
+  driverController.addServiceType,
+);
+driverRoutes.delete(
+  '/service-types/:serviceType',
+  protect,
+  validate(removeServiceTypeValidation),
+  driverController.removeServiceType,
 );
 
 export { driverRoutes };

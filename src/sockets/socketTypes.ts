@@ -66,6 +66,13 @@ interface RideOfferPayload {
   driverRating: number;
   vehicleType: string;
   offeredFare: number;
+  expiresAt?: string;
+}
+
+interface OfferExpiredPayload {
+  rideId: string;
+  offerId: string;
+  driverId: string;
 }
 
 interface RideAcceptedPayload {
@@ -129,6 +136,7 @@ interface NearbyDriversPayload {
 interface ServerToClientEvents {
   'ride:new_request': (payload: RideRequestPayload) => void;
   'ride:new_offer': (payload: RideOfferPayload) => void;
+  'ride:offer_expired': (payload: OfferExpiredPayload) => void;
   'ride:accepted': (payload: RideAcceptedPayload) => void;
   'ride:offer_rejected': (payload: OfferRejectedPayload) => void;
   'ride:status_changed': (payload: RideStatusPayload) => void;
@@ -153,6 +161,7 @@ export type {
   LocationUpdatePayload,
   NearbyDriversPayload,
   NearbySubscribePayload,
+  OfferExpiredPayload,
   OfferRejectedPayload,
   RideAcceptedPayload,
   RideCancelledPayload,

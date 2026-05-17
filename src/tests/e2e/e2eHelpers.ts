@@ -142,9 +142,21 @@ async function setupApprovedDriver(): Promise<ApprovedDriverResult> {
     .post('/api/v1/auth/login')
     .send({ phone, password: DEFAULT_PASSWORD });
 
+  const driverToken = loginRes.body.data.accessToken as string;
+
+  // 7. Register default service type (taxi) so the driver can accept rides
+  const svcRes = await request(app)
+    .post('/api/v1/driver/service-types')
+    .set('Authorization', `Bearer ${driverToken}`)
+    .send({ serviceType: 'taxi' });
+
+  if (svcRes.status !== 201) {
+    throw new Error(`Add service type failed: ${svcRes.status} ${JSON.stringify(svcRes.body)}`);
+  }
+
   return {
     userId,
-    accessToken: loginRes.body.data.accessToken,
+    accessToken: driverToken,
     phone,
   };
 }

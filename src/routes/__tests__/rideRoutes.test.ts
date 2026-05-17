@@ -2,7 +2,12 @@ import request from 'supertest';
 
 import { app } from '@/app';
 import { generateTestToken } from '@/tests/helpers/auth';
-import { createTestRide, createTestUser, resetFactoryCounters } from '@/tests/helpers/factories';
+import {
+  createTestDriverServiceType,
+  createTestRide,
+  createTestUser,
+  resetFactoryCounters,
+} from '@/tests/helpers/factories';
 import {
   flushTestRedis,
   setupTestDatabase,
@@ -21,6 +26,8 @@ jest.mock('@/jobs/producers', () => ({
   enqueueRideExpiration: jest.fn().mockResolvedValue(undefined),
   enqueueScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
   cancelRideExpiration: jest.fn().mockResolvedValue(undefined),
+  cancelOfferExpiration: jest.fn().mockResolvedValue(undefined),
+  enqueueOfferExpiration: jest.fn().mockResolvedValue(undefined),
   cancelScheduledRideActivation: jest.fn().mockResolvedValue(undefined),
   enqueueNotification: jest.fn().mockResolvedValue(undefined),
   enqueueOtpDelivery: jest.fn().mockResolvedValue(undefined),
@@ -165,6 +172,7 @@ describe('Ride Routes', () => {
     it('driver creates an offer for a pending ride', async () => {
       const rider = await createTestUser();
       const driver = await createTestUser({ role: UserRole.Driver });
+      await createTestDriverServiceType(driver.id);
       const token = generateTestToken(driver.id, driver.role);
       const ride = await createTestRide(rider.id, { status: RideStatus.Pending });
 
@@ -180,6 +188,7 @@ describe('Ride Routes', () => {
     it('rejects accepting a completed ride', async () => {
       const rider = await createTestUser();
       const driver = await createTestUser({ role: UserRole.Driver });
+      await createTestDriverServiceType(driver.id);
       const token = generateTestToken(driver.id, driver.role);
       const ride = await createTestRide(rider.id, { status: RideStatus.Completed });
 
