@@ -90,12 +90,24 @@ const removeServiceType = asyncHandler(async (req: Request, res: Response): Prom
   sendNoContent(res);
 });
 
+// ── Stats ─────────────────────────────────────────────────────────────────
+
+const getStats = asyncHandler(async (req: Request, res: Response): Promise<void> => {
+  const period = (req.query.period as string) || 'today';
+  const stats = await driverService.getStats(
+    req.user!.userId,
+    period as 'today' | 'week' | 'month',
+  );
+  sendSuccess(res, stats);
+});
+
 export {
   addServiceType,
   createProfile,
   getNearbyDrivers,
   getProfile,
   getServiceTypes,
+  getStats,
   getVehicle,
   registerVehicle,
   removeServiceType,

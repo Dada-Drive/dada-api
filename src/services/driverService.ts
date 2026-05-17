@@ -1,10 +1,18 @@
-import { Op } from 'sequelize';
+import { Op, fn, col, literal } from 'sequelize';
 
 import { redisClient } from '@/config/redis';
-import { DriverProfile, DriverServiceType, User, Vehicle } from '@/models/index';
+import {
+  DriverProfile,
+  DriverServiceType,
+  Rating,
+  Ride,
+  User,
+  Vehicle,
+  Wallet,
+} from '@/models/index';
 import { cacheDel, cacheGet, cacheSet } from '@/services/cacheService';
 import * as redisGeo from '@/services/redisGeoService';
-import { ServiceType, VehicleType } from '@/types/enums';
+import { RideStatus, ServiceType, VehicleType } from '@/types/enums';
 import { ErrorCodes, appError } from '@/types/errorCodes';
 import { logger } from '@/utils/logger';
 
@@ -330,12 +338,252 @@ async function getNearbyDrivers(query: NearbyQuery): Promise<NearbyDriver[]> {
   });
 }
 
+// ── Driver Stats ──────────────────────────────────────────────────────────
+
+const DRIVER_STATS_CACHE_TTL = 300; // 5 minutes
+
+type StatsPeriod = 'today' | 'week' | 'month';
+
+interface DriverStatsResult {
+  session: {
+    earnings: number;
+    ridesCompleted: number;
+    kmDriven: number;
+    onlineDuration: number;
+  };
+  allTime: {
+    totalRides: number;
+    rating: number;
+    walletBalance: number;
+  };
+  dailyEarnings: number[];
+  totalEarnings: number;
+  dateRange: { start: string; end: string };
+  trends: {
+    earnings: number | null;
+    rides: number | null;
+    hours: number | null;
+    distance: number | null;
+  };
+}
+
+function getPeriodRange(period: StatsPeriod): {
+  start: Date;
+  end: Date;
+  prevStart: Date;
+  prevEnd: Date;
+} {
+  const now = new Date();
+  const start = new Date(now);
+  const end = new Date(now);
+  const prevStart = new Date(now);
+  const prevEnd = new Date(now);
+
+  switch (period) {
+    case 'today':
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      prevStart.setDate(prevStart.getDate() - 1);
+      prevStart.setHours(0, 0, 0, 0);
+      prevEnd.setDate(prevEnd.getDate() - 1);
+      prevEnd.setHours(23, 59, 59, 999);
+      break;
+    case 'week': {
+      const day = now.getDay();
+      const diffToMonday = day === 0 ? 6 : day - 1;
+      start.setDate(now.getDate() - diffToMonday);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      prevStart.setDate(start.getDate() - 7);
+      prevStart.setHours(0, 0, 0, 0);
+      prevEnd.setDate(start.getDate() - 1);
+      prevEnd.setHours(23, 59, 59, 999);
+      break;
+    }
+    case 'month':
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+      prevStart.setMonth(prevStart.getMonth() - 1);
+      prevStart.setDate(1);
+      prevStart.setHours(0, 0, 0, 0);
+      prevEnd.setDate(0); // last day of previous month
+      prevEnd.setHours(23, 59, 59, 999);
+      break;
+  }
+
+  return { start, end, prevStart, prevEnd };
+}
+
+function computeTrend(current: number, previous: number): number | null {
+  if (previous === 0) return current > 0 ? 100 : null;
+  return Math.round(((current - previous) / previous) * 1000) / 10;
+}
+
+async function getSessionAgg(
+  userId: string,
+  from: Date,
+  to: Date,
+): Promise<{
+  earnings: string;
+  ridesCompleted: string;
+  kmDriven: string;
+  onlineDuration: string;
+} | null> {
+  return Ride.findOne({
+    attributes: [
+      [
+        fn(
+          'COALESCE',
+          fn(
+            'SUM',
+            literal('COALESCE("final_fare", "calculated_fare") - COALESCE("commission_amount", 0)'),
+          ),
+          0,
+        ),
+        'earnings',
+      ],
+      [fn('COUNT', col('id')), 'ridesCompleted'],
+      [fn('COALESCE', fn('SUM', col('distance_km')), 0), 'kmDriven'],
+      [
+        fn(
+          'COALESCE',
+          fn('SUM', literal('EXTRACT(EPOCH FROM ("completed_at" - "started_at"))')),
+          0,
+        ),
+        'onlineDuration',
+      ],
+    ],
+    where: {
+      driverId: userId,
+      status: RideStatus.Completed,
+      completedAt: { [Op.between]: [from, to] },
+    },
+    raw: true,
+  }) as unknown as {
+    earnings: string;
+    ridesCompleted: string;
+    kmDriven: string;
+    onlineDuration: string;
+  } | null;
+}
+
+async function getDailyEarnings(userId: string, from: Date, to: Date): Promise<number[]> {
+  const rows = (await Ride.findAll({
+    attributes: [
+      [literal('DATE("completed_at")'), 'day'],
+      [
+        fn(
+          'COALESCE',
+          fn(
+            'SUM',
+            literal('COALESCE("final_fare", "calculated_fare") - COALESCE("commission_amount", 0)'),
+          ),
+          0,
+        ),
+        'earnings',
+      ],
+    ],
+    where: {
+      driverId: userId,
+      status: RideStatus.Completed,
+      completedAt: { [Op.between]: [from, to] },
+    },
+    group: [literal('DATE("completed_at")') as unknown as string],
+    order: [[literal('DATE("completed_at")'), 'ASC']],
+    raw: true,
+  })) as unknown as { day: string; earnings: string }[];
+
+  // Build a map of day -> earnings
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(row.day, parseFloat(row.earnings) || 0);
+  }
+
+  // Generate array for each day in range
+  const result: number[] = [];
+  const current = new Date(from);
+  while (current <= to) {
+    const key = current.toISOString().slice(0, 10);
+    result.push(map.get(key) || 0);
+    current.setDate(current.getDate() + 1);
+  }
+
+  // For 'week' and 'month', cap at 7 most recent days for the bar chart
+  if (result.length > 7) {
+    return result.slice(-7);
+  }
+  return result;
+}
+
+async function getStats(userId: string, period: StatsPeriod = 'today'): Promise<DriverStatsResult> {
+  const cacheKey = `driver:${userId}:stats:${period}`;
+  const cached = await cacheGet<DriverStatsResult>(cacheKey);
+  if (cached) return cached as DriverStatsResult;
+
+  const { start, end, prevStart, prevEnd } = getPeriodRange(period);
+
+  const [sessionAgg, prevAgg, dailyEarnings, totalRides, ratingAgg, wallet] = await Promise.all([
+    getSessionAgg(userId, start, end),
+    getSessionAgg(userId, prevStart, prevEnd),
+    getDailyEarnings(userId, start, end),
+    Ride.count({
+      where: { driverId: userId, status: RideStatus.Completed },
+    }),
+    Rating.findOne({
+      attributes: [[fn('COALESCE', fn('AVG', col('score')), 0), 'avgRating']],
+      where: { driverId: userId },
+      raw: true,
+    }) as unknown as { avgRating: string } | null,
+    Wallet.findOne({
+      where: { ownerId: userId },
+      attributes: ['balance'],
+      raw: true,
+    }),
+  ]);
+
+  const earnings = parseFloat(sessionAgg?.earnings ?? '0') || 0;
+  const ridesCompleted = parseInt(sessionAgg?.ridesCompleted ?? '0', 10) || 0;
+  const kmDriven = parseFloat(sessionAgg?.kmDriven ?? '0') || 0;
+  const onlineDuration = parseFloat(sessionAgg?.onlineDuration ?? '0') || 0;
+
+  const prevEarnings = parseFloat(prevAgg?.earnings ?? '0') || 0;
+  const prevRides = parseInt(prevAgg?.ridesCompleted ?? '0', 10) || 0;
+  const prevKm = parseFloat(prevAgg?.kmDriven ?? '0') || 0;
+  const prevDuration = parseFloat(prevAgg?.onlineDuration ?? '0') || 0;
+
+  const result: DriverStatsResult = {
+    session: { earnings, ridesCompleted, kmDriven, onlineDuration },
+    allTime: {
+      totalRides,
+      rating: parseFloat(ratingAgg?.avgRating ?? '0') || 0,
+      walletBalance: wallet ? parseFloat(String(wallet.balance)) || 0 : 0,
+    },
+    dailyEarnings,
+    totalEarnings: earnings,
+    dateRange: {
+      start: start.toISOString().slice(0, 10),
+      end: end.toISOString().slice(0, 10),
+    },
+    trends: {
+      earnings: computeTrend(earnings, prevEarnings),
+      rides: computeTrend(ridesCompleted, prevRides),
+      hours: computeTrend(onlineDuration, prevDuration),
+      distance: computeTrend(kmDriven, prevKm),
+    },
+  };
+
+  await cacheSet(cacheKey, result, DRIVER_STATS_CACHE_TTL);
+  return result;
+}
+
 export {
   addServiceType,
   createProfile,
   getNearbyDrivers,
   getProfile,
   getServiceTypes,
+  getStats,
   getVehicle,
   registerVehicle,
   removeServiceType,

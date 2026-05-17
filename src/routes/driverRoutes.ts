@@ -153,4 +153,7 @@ driverRoutes.delete(
   driverController.removeServiceType,
 );
 
+// Stats
+driverRoutes.get('/stats', protect, driverController.getStats);
+
 export { driverRoutes };
