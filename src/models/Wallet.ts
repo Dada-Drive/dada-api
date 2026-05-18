@@ -35,7 +35,7 @@ function initWallet(sequelize: Sequelize): typeof Wallet {
       balance: {
         type: DataTypes.DECIMAL(12, 2),
         allowNull: false,
-        defaultValue: 0.0,
+        defaultValue: 10.0,
       },
       currency: {
         type: DataTypes.STRING(5),

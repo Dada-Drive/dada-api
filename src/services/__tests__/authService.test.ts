@@ -50,7 +50,7 @@ describe('authService', () => {
       // Verify wallet was created
       const wallet = await Wallet.findOne({ where: { ownerId: result.user.id } });
       expect(wallet).not.toBeNull();
-      expect(Number(wallet!.balance)).toBe(0);
+      expect(Number(wallet!.balance)).toBe(10);
     });
 
     it('rejects registration with duplicate phone', async () => {
